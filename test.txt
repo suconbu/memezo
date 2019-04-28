@@ -1,26 +1,26 @@
 // test.txt
 
 count = min(10,100)//minmin
-if count > 10 then//ifif
+if count > 10://ifif
 	goto L_FINISH
 endif
 // ...
 print("start.")//start
 
-for i = 1 to count
-	for j = 1 to 3
+for i = 1 to count:
+	for j = 1 to 3:
 		print(j)
 	endfor
 	printline()
-	if i == 1 then
+	if i == 1:
 		printline(i + " is one")
 	endif
-	if 2 < i && i < 5 then
+	if 2 < i && i < 5:
 		printline(i + " < 5")
-	else
-		if i >= 5 then
+	else:
+		if i >= 5:
 			printline(i + " >= 5")
-		else
+		else:
 			printline("else")
 		endif
 	endif

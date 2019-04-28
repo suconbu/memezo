@@ -150,11 +150,11 @@ namespace Suconbu.Scripting
                     this.Error("Expect keyword got " + keyword.ToString());
                     break;
             }
-            if (this.lastToken == Token.Colon)
-            {
-                this.GetNextToken();
-                this.Statment();
-            }
+            //if (this.lastToken == Token.Colon)
+            //{
+            //    this.GetNextToken();
+            //    this.Statment();
+            //}
         }
 
         //void Print()
@@ -192,7 +192,8 @@ namespace Suconbu.Scripting
         {
             bool result = (this.Expr().BinOp(new Value(0), Token.Equal).Real == 1);
 
-            this.Match(Token.Then);
+            this.Match(Token.Colon);
+            //this.Match(Token.Then);
             this.GetNextToken();
 
             if (result)
@@ -208,6 +209,8 @@ namespace Suconbu.Scripting
                     {
                         if (i == this.ifcounter)
                         {
+                            this.GetNextToken();
+                            this.Match(Token.Colon);
                             this.GetNextToken();
                             return;
                         }
@@ -326,6 +329,9 @@ namespace Suconbu.Scripting
 
             this.GetNextToken();
             v = this.Expr();
+
+            this.Match(Token.Colon);
+            this.GetNextToken();
 
             if (this.vars[var].BinOp(v, Token.More).Real == 1)
             {
@@ -575,7 +581,6 @@ namespace Suconbu.Scripting
                     //case "PRINT": return Token.Print;
                     case "IF": return Token.If;
                     case "ENDIF": return Token.EndIf;
-                    case "THEN": return Token.Then;
                     case "ELSE": return Token.Else;
                     case "FOR": return Token.For;
                     case "TO": return Token.To;
@@ -721,7 +726,7 @@ namespace Suconbu.Scripting
         Print,
         If,
         EndIf,
-        Then,
+        //Then,
         Else,
         For,
         To,
