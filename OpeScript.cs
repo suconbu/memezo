@@ -101,8 +101,8 @@ namespace Suconbu.Scripting
             this.lineMarker = this.lex.TokenMarker;
             this.Statment();
 
-            if (this.lastToken != Token.NewLine && this.lastToken != Token.EOF)
-                this.Error("Expect new line got " + this.lastToken.ToString());
+            //if (this.lastToken != Token.NewLine && this.lastToken != Token.EOF)
+            //    this.Error("Expect new line got " + this.lastToken.ToString());
         }
 
         void Statment()
