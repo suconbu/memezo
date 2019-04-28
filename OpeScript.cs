@@ -14,17 +14,17 @@ namespace Suconbu.Scripting
         private Token prevToken;
         private Token lastToken;
 
-        private Dictionary<string, Value> vars;
-        private Dictionary<string, Marker> labels;
-        private Dictionary<string, Marker> loops;
+        private Dictionary<string, Value> vars = new Dictionary<string, Value>();
+        private Dictionary<string, Marker> labels = new Dictionary<string, Marker>();
+        private Stack<Loop> loops = new Stack<Loop>();
 
         public delegate Value OpeFunction(OpeScript interpreter, List<Value> args);
-        private Dictionary<string, OpeFunction> functions;
+        private Dictionary<string, OpeFunction> functions = new Dictionary<string, OpeFunction>();
 
         public delegate void OpeAction(OpeScript interpreter, List<Value> args);
-        private Dictionary<string, OpeAction> actions;
+        private Dictionary<string, OpeAction> actions = new Dictionary<string, OpeAction>();
 
-        private int ifcounter;
+        private int ifcounter = 0;
 
         private Marker lineMarker;
 
@@ -33,12 +33,6 @@ namespace Suconbu.Scripting
         public OpeScript(string input)
         {
             this.lex = new Lexer(input);
-            this.vars = new Dictionary<string, Value>();
-            this.labels = new Dictionary<string, Marker>();
-            this.loops = new Dictionary<string, Marker>();
-            this.functions = new Dictionary<string, OpeFunction>();
-            this.actions = new Dictionary<string, OpeAction>();
-            this.ifcounter = 0;
             BuiltIns.InstallAll(this);
         }
 
@@ -124,7 +118,7 @@ namespace Suconbu.Scripting
                 case Token.Else: this.Else(); break;
                 case Token.EndIf: break;
                 case Token.For: this.For(); break;
-                case Token.Next: this.Next(); break;
+                case Token.EndFor: this.EndFor(); break;
                 //case Token.Let: Let(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer:
@@ -314,15 +308,19 @@ namespace Suconbu.Scripting
             this.GetNextToken();
             Value v = this.Expr();
 
-            if (this.loops.ContainsKey(var))
-            {
-                this.loops[var] = this.lineMarker;
-            }
-            else
+            if (this.loops.Count == 0 || this.loops.Peek().VarName != var)
             {
                 this.SetVar(var, v);
-                this.loops.Add(var, this.lineMarker);
+                this.loops.Push(new Loop()
+                {
+                    Marker = new Marker(this.lineMarker.Pointer - 1, this.lineMarker.Line, this.lineMarker.Column - 1),
+                    VarName = var
+                });
             }
+            //else
+            //{
+            //    this.loops[var] = this.lineMarker;
+            //}
 
             this.Match(Token.To);
 
@@ -331,27 +329,32 @@ namespace Suconbu.Scripting
 
             if (this.vars[var].BinOp(v, Token.More).Real == 1)
             {
-                while (true)
+                int counter = 0;
+                while (counter >= 0)
                 {
-                    while (!(this.GetNextToken() == Token.Identifer && this.prevToken == Token.Next)) ;
-                    if (this.lex.Identifer == var)
-                    {
-                        this.loops.Remove(var);
-                        this.GetNextToken();
-                        this.Match(Token.NewLine);
-                        break;
-                    }
+                    this.GetNextToken();
+                    if (this.lastToken == Token.For) ++counter;
+                    else if (this.lastToken == Token.EndFor) --counter;
                 }
+                this.loops.Pop();
+                this.GetNextToken();
+                this.Match(Token.NewLine);
             }
 
         }
 
-        void Next()
+        void EndFor()
         {
-            this.Match(Token.Identifer);
-            string var = this.lex.Identifer;
-            this.vars[var] = this.vars[var].BinOp(new Value(1), Token.Plus);
-            this.lex.GoTo(new Marker(this.loops[var].Pointer - 1, this.loops[var].Line, this.loops[var].Column - 1));
+            //this.Match(Token.Identifer);
+            //string var = this.lex.Identifer;
+            //this.vars[var] = this.vars[var].BinOp(new Value(1), Token.Plus);
+            if(this.loops.Count <= 0) this.Error("Unexpected " + this.lastToken);
+
+            var loop = this.loops.Peek();
+            this.vars[loop.VarName] = this.vars[loop.VarName].BinOp(new Value(1), Token.Plus);
+            this.lex.GoTo(loop.Marker);
+            //this.lex.GetToken();
+            //this.lex.GoTo(new Marker(this.loops[var].Pointer - 1, this.loops[var].Line, this.loops[var].Column - 1));
             this.lastToken = Token.NewLine;
         }
 
@@ -529,6 +532,7 @@ namespace Suconbu.Scripting
         public void GoTo(Marker marker)
         {
             this.sourceMarker = marker;
+            this.lastChar = this.source[marker.Pointer];
         }
 
         char GetChar()
@@ -575,7 +579,7 @@ namespace Suconbu.Scripting
                     case "ELSE": return Token.Else;
                     case "FOR": return Token.For;
                     case "TO": return Token.To;
-                    case "NEXT": return Token.Next;
+                    case "ENDFOR": return Token.EndFor;
                     case "GOTO": return Token.Goto;
                     //case "INPUT": return Token.Input;
                     //case "LET": return Token.Let;
@@ -700,6 +704,12 @@ namespace Suconbu.Scripting
         }
     }
 
+    struct Loop
+    {
+        public Marker Marker;
+        public string VarName;
+    }
+
     public enum Token
     {
         Unkown,
@@ -715,7 +725,7 @@ namespace Suconbu.Scripting
         Else,
         For,
         To,
-        Next,
+        EndFor,
         Goto,
         //Input,
         //Let,

@@ -8,19 +8,24 @@ endif
 print("start.")//start
 
 for i = 1 to count
+	for j = 1 to 3
+		print(j)
+	endfor
+	printline()
 	if i == 1 then
-		print(i + " is one")
+		printline(i + " is one")
 	endif
 	if 2 < i && i < 5 then
-		print(i + " < 5")
+		printline(i + " < 5")
 	else
 		if i >= 5 then
-			print(i + " >= 5")
+			printline(i + " >= 5")
 		else
-			print("else")
+			printline("else")
 		endif
 	endif
-next i//nexnex
+endfor
+printline("endfor")
 
 L_FINISH:
 
