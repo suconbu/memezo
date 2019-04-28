@@ -1,0 +1,15 @@
+rem test.txt
+
+count = 10
+
+print "start."
+
+for i = 1 to count
+	if i < 5 then
+		print i + " < 5"
+	else
+		print i + " >= 5"
+	endif
+next i
+
+print "finished."
