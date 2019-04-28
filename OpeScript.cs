@@ -125,7 +125,7 @@ namespace Suconbu.Scripting
                 case Token.EndIf: break;
                 case Token.For: For(); break;
                 case Token.Next: Next(); break;
-                case Token.Let: Let(); break;
+                //case Token.Let: Let(); break;
                 case Token.End: End(); break;
                 case Token.Identifer:
                     if (token == Token.Equal)
@@ -571,9 +571,9 @@ namespace Suconbu.Scripting
                     case "NEXT": return Token.Next;
                     case "GOTO": return Token.Goto;
                     //case "INPUT": return Token.Input;
-                    case "LET": return Token.Let;
-                    case "GOSUB": return Token.Gosub;
-                    case "RETURN": return Token.Return;
+                    //case "LET": return Token.Let;
+                    //case "GOSUB": return Token.Gosub;
+                    //case "RETURN": return Token.Return;
                     case "END": return Token.End;
                     case "OR": return Token.Or;
                     case "AND": return Token.And;
@@ -697,9 +697,9 @@ namespace Suconbu.Scripting
         Next,
         Goto,
         //Input,
-        Let,
-        Gosub,
-        Return,
+        //Let,
+        //Gosub,
+        //Return,
         Rem,
         End,
 
