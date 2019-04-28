@@ -1,5 +1,4 @@
-﻿// OpeScript
-// Script language for automated operation.
+﻿// OpeScript - The script language for automated operation.
 // Based on https://github.com/Timu5/BasicSharp
 
 using System;
@@ -10,25 +9,23 @@ namespace Suconbu.Scripting
 {
     public class OpeScript
     {
-        private Lexer lex;
-        private Token prevToken;
-        private Token lastToken;
-
-        private Dictionary<string, Value> vars = new Dictionary<string, Value>();
-        private Dictionary<string, Marker> labels = new Dictionary<string, Marker>();
-        private Stack<Loop> loops = new Stack<Loop>();
-
         public delegate Value OpeFunction(OpeScript interpreter, List<Value> args);
-        private Dictionary<string, OpeFunction> functions = new Dictionary<string, OpeFunction>();
-
         public delegate void OpeAction(OpeScript interpreter, List<Value> args);
-        private Dictionary<string, OpeAction> actions = new Dictionary<string, OpeAction>();
 
-        //private int ifcounter = 0;
+        Lexer lex;
+        Token prevToken;
+        Token lastToken;
 
-        private Marker lineMarker;
+        readonly Dictionary<string, Value> vars = new Dictionary<string, Value>();
+        readonly Dictionary<string, Marker> labels = new Dictionary<string, Marker>();
+        readonly Stack<Loop> loops = new Stack<Loop>();
 
-        private bool exit;
+        readonly Dictionary<string, OpeFunction> functions = new Dictionary<string, OpeFunction>();
+        readonly Dictionary<string, OpeAction> actions = new Dictionary<string, OpeAction>();
+
+        Marker lineMarker;
+
+        bool exit;
 
         public OpeScript(string input)
         {
@@ -66,28 +63,6 @@ namespace Suconbu.Scripting
             while (!this.exit) this.Statment();
         }
 
-        void Error(string text)
-        {
-            throw new Exception(text + " at line: " + this.lineMarker.Line);
-        }
-
-        void Match(Token tok)
-        {
-            if (this.lastToken != tok)
-                this.Error("Expect " + tok.ToString() + " got " + this.lastToken.ToString());
-        }
-
-        Token GetNextToken()
-        {
-            this.prevToken = this.lastToken;
-            this.lastToken = this.lex.GetToken();
-
-            //if (this.lastToken == Token.EOF && this.prevToken == Token.EOF)
-            //    this.Error("Unexpected end of file");
-
-            return this.lastToken;
-        }
-
         void Statment()
         {
             this.lineMarker = this.lex.TokenMarker;
@@ -96,8 +71,6 @@ namespace Suconbu.Scripting
             var token = this.GetNextToken();
             switch (keyword)
             {
-                //case Token.Print: Print(); break;
-                //case Token.Input: Input(); break;
                 case Token.Goto: this.Goto(); break;
                 case Token.If: this.If(); break;
                 case Token.Elif: this.Else(); break;
@@ -105,7 +78,6 @@ namespace Suconbu.Scripting
                 case Token.EndIf: break;
                 case Token.For: this.For(); break;
                 case Token.EndFor: this.EndFor(); break;
-                //case Token.Let: Let(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer:
                     if (token == Token.Let)
@@ -138,17 +110,26 @@ namespace Suconbu.Scripting
                     this.Error("Unexpected keyword: " + keyword);
                     break;
             }
-            //if (this.lastToken == Token.Colon)
-            //{
-            //    this.GetNextToken();
-            //    this.Statment();
-            //}
         }
 
-        //void Print()
-        //{
-        //    Console.WriteLine(Expr().ToString());
-        //}
+        void Error(string text)
+        {
+            throw new Exception(text + " at line: " + this.lineMarker.Line);
+        }
+
+        void Match(Token tok)
+        {
+            if (this.lastToken != tok)
+                this.Error("Expect " + tok.ToString() + " got " + this.lastToken.ToString());
+        }
+
+        Token GetNextToken()
+        {
+            this.prevToken = this.lastToken;
+            this.lastToken = this.lex.GetToken();
+
+            return this.lastToken;
+        }
 
         void Goto()
         {
@@ -178,25 +159,24 @@ namespace Suconbu.Scripting
 
         void If()
         {
-            bool result = (this.Expr().BinOp(new Value(0), Token.Equal).Real == 1);
+            bool result = (this.Expr().BinOp(new Value(0), Token.Equal).Number == 1);
 
             this.Match(Token.Colon);
-            //this.Match(Token.Then);
             this.GetNextToken();
 
             if (result)
             {
-                // 条件成立せず
-                int i = 0;
+                // Condition is not satisfied.
+                int depth = 0;
                 while (true)
                 {
                     if (this.lastToken == Token.If)
                     {
-                        i++;
+                        depth++;
                     }
                     else if (this.lastToken == Token.Elif)
                     {
-                        if (i == 0)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             this.If();
@@ -205,7 +185,7 @@ namespace Suconbu.Scripting
                     }
                     else if (this.lastToken == Token.Else)
                     {
-                        if (i == 0)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             this.Match(Token.Colon);
@@ -215,12 +195,12 @@ namespace Suconbu.Scripting
                     }
                     else if (this.lastToken == Token.EndIf)
                     {
-                        if (i == 0)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             return;
                         }
-                        i--;
+                        depth--;
                     }
                     this.GetNextToken();
                 }
@@ -229,22 +209,22 @@ namespace Suconbu.Scripting
 
         void Else()
         {
-            // if実行後にやってきた
-            int i = 0;
+            // After if clause executed.
+            int depth = 0;
             while (true)
             {
                 if (this.lastToken == Token.If)
                 {
-                    i++;
+                    depth++;
                 }
                 else if (this.lastToken == Token.EndIf)
                 {
-                    if (i == 0)
+                    if (depth == 0)
                     {
                         this.GetNextToken();
                         return;
                     }
-                    i--;
+                    depth--;
                 }
                 this.GetNextToken();
             }
@@ -320,10 +300,6 @@ namespace Suconbu.Scripting
                     VarName = var
                 });
             }
-            //else
-            //{
-            //    this.loops[var] = this.lineMarker;
-            //}
 
             this.Match(Token.To);
 
@@ -333,7 +309,7 @@ namespace Suconbu.Scripting
             this.Match(Token.Colon);
             this.GetNextToken();
 
-            if (this.vars[var].BinOp(v, Token.More).Real == 1)
+            if (this.vars[var].BinOp(v, Token.More).Number == 1)
             {
                 int counter = 0;
                 while (counter >= 0)
@@ -351,16 +327,11 @@ namespace Suconbu.Scripting
 
         void EndFor()
         {
-            //this.Match(Token.Identifer);
-            //string var = this.lex.Identifer;
-            //this.vars[var] = this.vars[var].BinOp(new Value(1), Token.Plus);
             if(this.loops.Count <= 0) this.Error("Unexpected " + this.lastToken);
 
             var loop = this.loops.Peek();
             this.vars[loop.VarName] = this.vars[loop.VarName].BinOp(new Value(1), Token.Plus);
             this.lex.GoTo(loop.Marker);
-            //this.lex.GetToken();
-            //this.lex.GoTo(new Marker(this.loops[var].Pointer - 1, this.loops[var].Line, this.loops[var].Column - 1));
             this.lastToken = Token.NewLine;
         }
 
@@ -418,12 +389,14 @@ namespace Suconbu.Scripting
                     this.GetNextToken();
                     this.Match(Token.LParen);
 
-                start:
-                    if (this.GetNextToken() != Token.RParen)
+                    while (true)
                     {
-                        args.Add(this.Expr());
-                        if (this.lastToken == Token.Comma)
-                            goto start;
+                        if (this.GetNextToken() != Token.RParen)
+                        {
+                            args.Add(this.Expr());
+                            if (this.lastToken == Token.Comma) continue;
+                        }
+                        break;
                     }
 
                     prim = this.functions[name](this, args);
@@ -470,58 +443,46 @@ namespace Suconbu.Scripting
 
         public static Value Str(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 1)
-                throw new ArgumentException();
-
+            if (args.Count < 1) throw new ArgumentException();
             return args[0].Convert(ValueType.String);
         }
 
         public static Value Num(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 1)
-                throw new ArgumentException();
-
-            return args[0].Convert(ValueType.Real);
+            if (args.Count < 1) throw new ArgumentException();
+            return args[0].Convert(ValueType.Number);
         }
 
         public static Value Abs(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 1)
-                throw new ArgumentException();
-
-            return new Value(Math.Abs(args[0].Real));
+            if (args.Count < 1) throw new ArgumentException();
+            return new Value(Math.Abs(args[0].Number));
         }
 
         public static Value Min(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 2)
-                throw new ArgumentException();
-
-            return new Value(Math.Min(args[0].Real, args[1].Real));
+            if (args.Count < 2) throw new ArgumentException();
+            return new Value(Math.Min(args[0].Number, args[1].Number));
         }
 
         public static Value Max(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 1)
-                throw new ArgumentException();
-
-            return new Value(Math.Max(args[0].Real, args[1].Real));
+            if (args.Count < 2) throw new ArgumentException();
+            return new Value(Math.Max(args[0].Number, args[1].Number));
         }
 
         public static Value Not(OpeScript interpreter, List<Value> args)
         {
-            if (args.Count < 1)
-                throw new ArgumentException();
-
-            return new Value(args[0].Real == 0 ? 1 : 0);
+            if (args.Count < 1) throw new ArgumentException();
+            return new Value(args[0].Number == 0 ? 1 : 0);
         }
     }
 
     public class Lexer
     {
-        private readonly string source;
-        private Marker sourceMarker;
-        private char lastChar;
+        readonly string source;
+        Marker sourceMarker;
+        char lastChar;
 
         public Marker TokenMarker { get; set; }
 
@@ -566,7 +527,7 @@ namespace Suconbu.Scripting
 
             if (this.lastChar == '/' && this.GetChar() == '/')
             {
-                // Comment
+                // Line comment
                 while (this.lastChar != '\n') this.GetChar();
                 return Token.NewLine;
             }
@@ -578,7 +539,6 @@ namespace Suconbu.Scripting
                 Debug.Print(this.Identifer);
                 switch (this.Identifer.ToUpper())
                 {
-                    //case "PRINT": return Token.Print;
                     case "IF": return Token.If;
                     case "ELIF": return Token.Elif;
                     case "ELSE": return Token.Else;
@@ -587,13 +547,7 @@ namespace Suconbu.Scripting
                     case "TO": return Token.To;
                     case "ENDFOR": return Token.EndFor;
                     case "GOTO": return Token.Goto;
-                    //case "INPUT": return Token.Input;
-                    //case "LET": return Token.Let;
-                    //case "GOSUB": return Token.Gosub;
-                    //case "RETURN": return Token.Return;
                     case "END": return Token.End;
-                    //case "OR": return Token.Or;
-                    //case "AND": return Token.And;
                     default:
                         return Token.Identifer;
                 }
@@ -698,8 +652,11 @@ namespace Suconbu.Scripting
 
     public struct Marker
     {
+        // Zero based.
         public int Pointer { get; set; }
+        // One based.
         public int Line { get; set; }
+        // One based.
         public int Column { get; set; }
 
         public Marker(int pointer, int line, int column)
@@ -729,17 +686,11 @@ namespace Suconbu.Scripting
         If,
         Elif,
         EndIf,
-        //Then,
         Else,
         For,
         To,
         EndFor,
         Goto,
-        //Input,
-        //Let,
-        //Gosub,
-        //Return,
-        //Rem,
         End,
 
         NewLine,
@@ -771,7 +722,7 @@ namespace Suconbu.Scripting
 
     public enum ValueType
     {
-        Real,
+        Number,
         String
     }
 
@@ -779,18 +730,16 @@ namespace Suconbu.Scripting
     {
         public static readonly Value Zero = new Value(0);
         public ValueType Type { get; set; }
-
-        public double Real { get; set; }
+        public double Number { get; set; }
         public string String { get; set; }
 
-        public Value(double real) : this()
+        public Value(double number) : this()
         {
-            this.Type = ValueType.Real;
-            this.Real = real;
+            this.Type = ValueType.Number;
+            this.Number = number;
         }
 
-        public Value(string str)
-            : this()
+        public Value(string str) : this()
         {
             this.Type = ValueType.String;
             this.String = str;
@@ -802,12 +751,12 @@ namespace Suconbu.Scripting
             {
                 switch (type)
                 {
-                    case ValueType.Real:
-                        this.Real = double.Parse(this.String);
-                        this.Type = ValueType.Real;
+                    case ValueType.Number:
+                        this.Number = double.Parse(this.String);
+                        this.Type = ValueType.Number;
                         break;
                     case ValueType.String:
-                        this.String = this.Real.ToString();
+                        this.String = this.Number.ToString();
                         this.Type = ValueType.String;
                         break;
                 }
@@ -828,24 +777,21 @@ namespace Suconbu.Scripting
 
             if (tok == Token.Plus)
             {
-                if (a.Type == ValueType.Real)
-                    return new Value(a.Real + b.Real);
-                else
-                    return new Value(a.String + b.String);
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number + b.Number) :
+                    new Value(a.String + b.String);
             }
             else if (tok == Token.Equal)
             {
-                if (a.Type == ValueType.Real)
-                    return new Value(a.Real == b.Real ? 1 : 0);
-                else
-                    return new Value(a.String == b.String ? 1 : 0);
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number == b.Number ? 1 : 0) :
+                    new Value(a.String == b.String ? 1 : 0);
             }
             else if (tok == Token.NotEqual)
             {
-                if (a.Type == ValueType.Real)
-                    return new Value(a.Real == b.Real ? 0 : 1);
-                else
-                    return new Value(a.String == b.String ? 0 : 1);
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number == b.Number ? 0 : 1) :
+                    new Value(a.String == b.String ? 0 : 1);
             }
             else
             {
@@ -854,16 +800,16 @@ namespace Suconbu.Scripting
 
                 switch (tok)
                 {
-                    case Token.Minus: return new Value(a.Real - b.Real);
-                    case Token.Asterisk: return new Value(a.Real * b.Real);
-                    case Token.Slash: return new Value(a.Real / b.Real);
-                    case Token.Caret: return new Value(Math.Pow(a.Real, b.Real));
-                    case Token.Less: return new Value(a.Real < b.Real ? 1 : 0);
-                    case Token.More: return new Value(a.Real > b.Real ? 1 : 0);
-                    case Token.LessEqual: return new Value(a.Real <= b.Real ? 1 : 0);
-                    case Token.MoreEqual: return new Value(a.Real >= b.Real ? 1 : 0);
-                    case Token.And: return new Value(a.Real != 0.0 && b.Real != 0.0 ? 1 : 0);
-                    case Token.Or: return new Value(a.Real != 0.0 || b.Real != 0.0 ? 1 : 0);
+                    case Token.Minus: return new Value(a.Number - b.Number);
+                    case Token.Asterisk: return new Value(a.Number * b.Number);
+                    case Token.Slash: return new Value(a.Number / b.Number);
+                    case Token.Caret: return new Value(Math.Pow(a.Number, b.Number));
+                    case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
+                    case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
+                    case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
+                    case Token.MoreEqual: return new Value(a.Number >= b.Number ? 1 : 0);
+                    case Token.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
+                    case Token.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
                 }
             }
             throw new Exception("Unkown binop");
@@ -871,9 +817,7 @@ namespace Suconbu.Scripting
 
         public override string ToString()
         {
-            if (this.Type == ValueType.Real)
-                return this.Real.ToString();
-            return this.String;
+            return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
         }
     }
 }
