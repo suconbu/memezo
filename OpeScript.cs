@@ -128,7 +128,7 @@ namespace Suconbu.Scripting
                 //case Token.Let: Let(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer:
-                    if (token == Token.Equal)
+                    if (token == Token.Let)
                     {
                         this.Let();
                     }
@@ -270,11 +270,11 @@ namespace Suconbu.Scripting
 
         void Let()
         {
-            if (this.lastToken != Token.Equal)
+            if (this.lastToken != Token.Let)
             {
                 this.Match(Token.Identifer);
                 this.GetNextToken();
-                this.Match(Token.Equal);
+                this.Match(Token.Let);
             }
 
             string id = this.lex.Identifer;
@@ -309,7 +309,7 @@ namespace Suconbu.Scripting
             string var = this.lex.Identifer;
 
             this.GetNextToken();
-            this.Match(Token.Equal);
+            this.Match(Token.Let);
 
             this.GetNextToken();
             Value v = this.Expr();
@@ -372,8 +372,8 @@ namespace Suconbu.Scripting
 
             while (true)
             {
-                if (this.lastToken < Token.Plus || this.lastToken > Token.And || precedens[this.lastToken] < min)
-                    break;
+                if (this.lastToken < Token.Plus || this.lastToken > Token.And) break;
+                if ((precedens.TryGetValue(this.lastToken, out var p) ? p : -1) < min) break;
 
                 Token op = this.lastToken;
                 int prec = precedens[this.lastToken];
@@ -582,8 +582,8 @@ namespace Suconbu.Scripting
                     //case "GOSUB": return Token.Gosub;
                     //case "RETURN": return Token.Return;
                     case "END": return Token.End;
-                    case "OR": return Token.Or;
-                    case "AND": return Token.And;
+                    //case "OR": return Token.Or;
+                    //case "AND": return Token.And;
                     default:
                         return Token.Identifer;
                 }
@@ -608,7 +608,16 @@ namespace Suconbu.Scripting
                 case ':': tok = Token.Colon; break;
                 case ';': tok = Token.Semicolon; break;
                 case ',': tok = Token.Comma; break;
-                case '=': tok = Token.Equal; break;
+                case '=':
+                    this.GetChar();
+                    if (this.lastChar == '=') tok = Token.Equal;
+                    else return Token.Let;
+                    break;
+                case '!':
+                    this.GetChar();
+                    if (this.lastChar == '=') tok = Token.NotEqual;
+                    else return Token.Unkown;
+                    break;
                 case '+': tok = Token.Plus; break;
                 case '-': tok = Token.Minus; break;
                 case '/': tok = Token.Slash; break;
@@ -622,8 +631,7 @@ namespace Suconbu.Scripting
                     return this.GetToken();
                 case '<':
                     this.GetChar();
-                    if (this.lastChar == '>') tok = Token.NotEqual;
-                    else if (this.lastChar == '=') tok = Token.LessEqual;
+                    if (this.lastChar == '=') tok = Token.LessEqual;
                     else return Token.Less;
                     break;
                 case '>':
@@ -652,6 +660,16 @@ namespace Suconbu.Scripting
                     }
                     this.Value = new Value(str);
                     tok = Token.Value;
+                    break;
+                case '&':
+                    this.GetChar();
+                    if (this.lastChar == '&') tok = Token.And;
+                    else return Token.Unkown;
+                    break;
+                case '|':
+                    this.GetChar();
+                    if (this.lastChar == '|') tok = Token.Or;
+                    else return Token.Unkown;
                     break;
                 case (char)0:
                     return Token.EOF;
@@ -716,6 +734,7 @@ namespace Suconbu.Scripting
         Slash,
         Asterisk,
         Caret,
+        Let,
         Equal,
         Less,
         More,
@@ -724,7 +743,7 @@ namespace Suconbu.Scripting
         MoreEqual,
         Or,
         And,
-        Not,
+        //Not,
 
         LParen,
         RParen,
@@ -825,6 +844,8 @@ namespace Suconbu.Scripting
                     case Token.More: return new Value(a.Real > b.Real ? 1 : 0);
                     case Token.LessEqual: return new Value(a.Real <= b.Real ? 1 : 0);
                     case Token.MoreEqual: return new Value(a.Real >= b.Real ? 1 : 0);
+                    case Token.And: return new Value(a.Real != 0.0 && b.Real != 0.0 ? 1 : 0);
+                    case Token.Or: return new Value(a.Real != 0.0 || b.Real != 0.0 ? 1 : 0);
                 }
             }
             throw new Exception("Unkown binop");

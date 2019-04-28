@@ -8,10 +8,17 @@ endif
 print("start.")//start
 
 for i = 1 to count
-	if i < 5 then
+	if i == 1 then
+		print(i + " is one")
+	endif
+	if 2 < i && i < 5 then
 		print(i + " < 5")
 	else
-		print(i + " >= 5")
+		if i >= 5 then
+			print(i + " >= 5")
+		else
+			print("else")
+		endif
 	endif
 next i//nexnex
 
