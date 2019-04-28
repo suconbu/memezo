@@ -63,7 +63,7 @@ namespace Suconbu.Scripting
         {
             this.exit = false;
             this.GetNextToken();
-            while (!this.exit) this.Line();
+            while (!this.exit) this.Statment();
         }
 
         void Error(string text)
@@ -82,31 +82,16 @@ namespace Suconbu.Scripting
             this.prevToken = this.lastToken;
             this.lastToken = this.lex.GetToken();
 
-            if (this.lastToken == Token.EOF && this.prevToken == Token.EOF)
-                this.Error("Unexpected end of file");
+            //if (this.lastToken == Token.EOF && this.prevToken == Token.EOF)
+            //    this.Error("Unexpected end of file");
 
             return this.lastToken;
         }
 
-        void Line()
-        {
-            while (this.lastToken == Token.NewLine) this.GetNextToken();
-
-            if (this.lastToken == Token.EOF)
-            {
-                this.exit = true;
-                return;
-            }
-
-            this.lineMarker = this.lex.TokenMarker;
-            this.Statment();
-
-            //if (this.lastToken != Token.NewLine && this.lastToken != Token.EOF)
-            //    this.Error("Expect new line got " + this.lastToken.ToString());
-        }
-
         void Statment()
         {
+            this.lineMarker = this.lex.TokenMarker;
+
             Token keyword = this.lastToken;
             var token = this.GetNextToken();
             switch (keyword)
@@ -144,11 +129,13 @@ namespace Suconbu.Scripting
                         }
                     }
                     break;
+                case Token.NewLine:
+                    break;
                 case Token.EOF:
                     this.exit = true;
                     break;
                 default:
-                    this.Error("Expect keyword got " + keyword.ToString());
+                    this.Error("Unexpected keyword: " + keyword);
                     break;
             }
             //if (this.lastToken == Token.Colon)
@@ -307,6 +294,7 @@ namespace Suconbu.Scripting
                 }
                 break;
             }
+            this.Match(Token.RParen);
             if (this.functions.TryGetValue(name, out var function)) function(this, args);
             else if (this.actions.TryGetValue(name, out var action)) action(this, args);
             this.GetNextToken();
