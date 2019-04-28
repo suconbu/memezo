@@ -557,8 +557,7 @@ namespace Suconbu.Scripting
             if (char.IsLetter(lastChar))
             {
                 Identifer = lastChar.ToString();
-                while (char.IsLetterOrDigit(GetChar()))
-                    Identifer += lastChar;
+                while (this.IsLetterOrDigitOrUnderscore(GetChar())) Identifer += lastChar;
                 Debug.Print(Identifer);
                 switch (Identifer.ToUpper())
                 {
@@ -657,6 +656,11 @@ namespace Suconbu.Scripting
 
             GetChar();
             return tok;
+        }
+
+        bool IsLetterOrDigitOrUnderscore(char c)
+        {
+            return char.IsLetterOrDigit(c) || c == '_';
         }
     }
 

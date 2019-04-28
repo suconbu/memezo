@@ -1,6 +1,9 @@
 rem test.txt
 
-count = 10
+count = min(10,100)
+if count > 10 then
+	goto L_FINISH
+endif
 
 print("start.")
 
@@ -12,6 +15,6 @@ for i = 1 to count
 	endif
 next i
 
-FINISH:
+L_FINISH:
 
 print("finished.")
