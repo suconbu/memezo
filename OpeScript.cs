@@ -24,7 +24,7 @@ namespace Suconbu.Scripting
         public delegate void OpeAction(OpeScript interpreter, List<Value> args);
         private Dictionary<string, OpeAction> actions = new Dictionary<string, OpeAction>();
 
-        private int ifcounter = 0;
+        //private int ifcounter = 0;
 
         private Marker lineMarker;
 
@@ -115,6 +115,7 @@ namespace Suconbu.Scripting
                 //case Token.Input: Input(); break;
                 case Token.Goto: this.Goto(); break;
                 case Token.If: this.If(); break;
+                case Token.Elif: this.Else(); break;
                 case Token.Else: this.Else(); break;
                 case Token.EndIf: break;
                 case Token.For: this.For(); break;
@@ -198,16 +199,26 @@ namespace Suconbu.Scripting
 
             if (result)
             {
-                int i = this.ifcounter;
+                // 条件成立せず
+                int i = 0;
                 while (true)
                 {
                     if (this.lastToken == Token.If)
                     {
                         i++;
                     }
+                    else if (this.lastToken == Token.Elif)
+                    {
+                        if (i == 0)
+                        {
+                            this.GetNextToken();
+                            this.If();
+                            return;
+                        }
+                    }
                     else if (this.lastToken == Token.Else)
                     {
-                        if (i == this.ifcounter)
+                        if (i == 0)
                         {
                             this.GetNextToken();
                             this.Match(Token.Colon);
@@ -217,7 +228,7 @@ namespace Suconbu.Scripting
                     }
                     else if (this.lastToken == Token.EndIf)
                     {
-                        if (i == this.ifcounter)
+                        if (i == 0)
                         {
                             this.GetNextToken();
                             return;
@@ -231,7 +242,8 @@ namespace Suconbu.Scripting
 
         void Else()
         {
-            int i = this.ifcounter;
+            // if実行後にやってきた
+            int i = 0;
             while (true)
             {
                 if (this.lastToken == Token.If)
@@ -240,7 +252,7 @@ namespace Suconbu.Scripting
                 }
                 else if (this.lastToken == Token.EndIf)
                 {
-                    if (i == this.ifcounter)
+                    if (i == 0)
                     {
                         this.GetNextToken();
                         return;
@@ -580,8 +592,9 @@ namespace Suconbu.Scripting
                 {
                     //case "PRINT": return Token.Print;
                     case "IF": return Token.If;
-                    case "ENDIF": return Token.EndIf;
+                    case "ELIF": return Token.Elif;
                     case "ELSE": return Token.Else;
+                    case "ENDIF": return Token.EndIf;
                     case "FOR": return Token.For;
                     case "TO": return Token.To;
                     case "ENDFOR": return Token.EndFor;
@@ -652,6 +665,7 @@ namespace Suconbu.Scripting
                     string str = "";
                     while (this.GetChar() != '"')
                     {
+                        if (this.lastChar == 0) return Token.EOF;
                         if (this.lastChar == '\\')
                         {
                             switch (char.ToLower(this.GetChar()))
@@ -725,6 +739,7 @@ namespace Suconbu.Scripting
         //Keywords
         Print,
         If,
+        Elif,
         EndIf,
         //Then,
         Else,

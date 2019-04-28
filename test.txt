@@ -5,18 +5,24 @@ if count > 10://ifif
 	goto L_FINISH
 endif
 // ...
-print("start.")//start
+printline("--- START ---")//start
 
 for i = 1 to count:
 	for j = 1 to 3:
 		print(j)
 	endfor
 	printline()
-	if i == 1: printline(i + " is one") endif
+	if i == 1: printline("  if i == 1")
+	elif count == 10: printline("count == " + count)
+	else: printline("  else")
+	endif
+	
 	if 2 < i && i < 5:
 		printline(i + " < 5")
 	else:
-		if i >= 5: printline(i + " >= 5")
+		if i >= 5:
+			printline(i + " >= 5")
+			count = 15
 		else: printline("else")
 		endif
 	endif
@@ -24,4 +30,4 @@ endfor
 printline("endfor")
 
 L_FINISH:
-print("finished.")
+printline("--- FINISHED ---")
