@@ -44,15 +44,15 @@ namespace Suconbu.Scripting
 
         public Value GetVar(string name)
         {
-            if (!vars.ContainsKey(name))
+            if (!this.vars.ContainsKey(name))
                 throw new Exception("Variable with name " + name + " does not exist.");
-            return vars[name];
+            return this.vars[name];
         }
 
         public void SetVar(string name, Value val)
         {
-            if (!vars.ContainsKey(name)) vars.Add(name, val);
-            else vars[name] = val;
+            if (!this.vars.ContainsKey(name)) this.vars.Add(name, val);
+            else this.vars[name] = val;
         }
 
         public void AddFunction(string name, OpeFunction function)
@@ -67,66 +67,66 @@ namespace Suconbu.Scripting
 
         public void Run()
         {
-            exit = false;
-            GetNextToken();
-            while (!exit) Line();
+            this.exit = false;
+            this.GetNextToken();
+            while (!this.exit) this.Line();
         }
 
         void Error(string text)
         {
-            throw new Exception(text + " at line: " + lineMarker.Line);
+            throw new Exception(text + " at line: " + this.lineMarker.Line);
         }
 
         void Match(Token tok)
         {
-            if (lastToken != tok)
-                Error("Expect " + tok.ToString() + " got " + lastToken.ToString());
+            if (this.lastToken != tok)
+                this.Error("Expect " + tok.ToString() + " got " + this.lastToken.ToString());
         }
 
         Token GetNextToken()
         {
-            prevToken = lastToken;
-            lastToken = lex.GetToken();
+            this.prevToken = this.lastToken;
+            this.lastToken = this.lex.GetToken();
 
-            if (lastToken == Token.EOF && prevToken == Token.EOF)
-                Error("Unexpected end of file");
+            if (this.lastToken == Token.EOF && this.prevToken == Token.EOF)
+                this.Error("Unexpected end of file");
 
-            return lastToken;
+            return this.lastToken;
         }
 
         void Line()
         {
-            while (lastToken == Token.NewLine) GetNextToken();
+            while (this.lastToken == Token.NewLine) this.GetNextToken();
 
-            if (lastToken == Token.EOF)
+            if (this.lastToken == Token.EOF)
             {
-                exit = true;
+                this.exit = true;
                 return;
             }
 
-            lineMarker = lex.TokenMarker;
-            Statment();
+            this.lineMarker = this.lex.TokenMarker;
+            this.Statment();
 
-            if (lastToken != Token.NewLine && lastToken != Token.EOF)
-                Error("Expect new line got " + lastToken.ToString());
+            if (this.lastToken != Token.NewLine && this.lastToken != Token.EOF)
+                this.Error("Expect new line got " + this.lastToken.ToString());
         }
 
         void Statment()
         {
             Token keyword = this.lastToken;
-            var token = GetNextToken();
+            var token = this.GetNextToken();
             switch (keyword)
             {
                 //case Token.Print: Print(); break;
                 //case Token.Input: Input(); break;
-                case Token.Goto: Goto(); break;
-                case Token.If: If(); break;
-                case Token.Else: Else(); break;
+                case Token.Goto: this.Goto(); break;
+                case Token.If: this.If(); break;
+                case Token.Else: this.Else(); break;
                 case Token.EndIf: break;
-                case Token.For: For(); break;
-                case Token.Next: Next(); break;
+                case Token.For: this.For(); break;
+                case Token.Next: this.Next(); break;
                 //case Token.Let: Let(); break;
-                case Token.End: End(); break;
+                case Token.End: this.End(); break;
                 case Token.Identifer:
                     if (token == Token.Equal)
                     {
@@ -150,16 +150,16 @@ namespace Suconbu.Scripting
                     }
                     break;
                 case Token.EOF:
-                    exit = true;
+                    this.exit = true;
                     break;
                 default:
-                    Error("Expect keyword got " + keyword.ToString());
+                    this.Error("Expect keyword got " + keyword.ToString());
                     break;
             }
-            if (lastToken == Token.Colon)
+            if (this.lastToken == Token.Colon)
             {
-                GetNextToken();
-                Statment();
+                this.GetNextToken();
+                this.Statment();
             }
         }
 
@@ -170,129 +170,129 @@ namespace Suconbu.Scripting
 
         void Goto()
         {
-            Match(Token.Identifer);
-            string name = lex.Identifer;
+            this.Match(Token.Identifer);
+            string name = this.lex.Identifer;
 
-            if (!labels.ContainsKey(name))
+            if (!this.labels.ContainsKey(name))
             {
                 while (true)
                 {
-                    if (GetNextToken() == Token.Colon && prevToken == Token.Identifer)
+                    if (this.GetNextToken() == Token.Colon && this.prevToken == Token.Identifer)
                     {
-                        if (!labels.ContainsKey(lex.Identifer))
-                            labels.Add(lex.Identifer, lex.TokenMarker);
-                        if (lex.Identifer == name)
+                        if (!this.labels.ContainsKey(this.lex.Identifer))
+                            this.labels.Add(this.lex.Identifer, this.lex.TokenMarker);
+                        if (this.lex.Identifer == name)
                             break;
                     }
-                    if (lastToken == Token.EOF)
+                    if (this.lastToken == Token.EOF)
                     {
-                        Error("Cannot find label named " + name);
+                        this.Error("Cannot find label named " + name);
                     }
                 }
             }
-            lex.GoTo(labels[name]);
-            lastToken = Token.NewLine;
+            this.lex.GoTo(this.labels[name]);
+            this.lastToken = Token.NewLine;
         }
 
         void If()
         {
-            bool result = (Expr().BinOp(new Value(0), Token.Equal).Real == 1);
+            bool result = (this.Expr().BinOp(new Value(0), Token.Equal).Real == 1);
 
-            Match(Token.Then);
-            GetNextToken();
+            this.Match(Token.Then);
+            this.GetNextToken();
 
             if (result)
             {
-                int i = ifcounter;
+                int i = this.ifcounter;
                 while (true)
                 {
-                    if (lastToken == Token.If)
+                    if (this.lastToken == Token.If)
                     {
                         i++;
                     }
-                    else if (lastToken == Token.Else)
+                    else if (this.lastToken == Token.Else)
                     {
-                        if (i == ifcounter)
+                        if (i == this.ifcounter)
                         {
-                            GetNextToken();
+                            this.GetNextToken();
                             return;
                         }
                     }
-                    else if (lastToken == Token.EndIf)
+                    else if (this.lastToken == Token.EndIf)
                     {
-                        if (i == ifcounter)
+                        if (i == this.ifcounter)
                         {
-                            GetNextToken();
+                            this.GetNextToken();
                             return;
                         }
                         i--;
                     }
-                    GetNextToken();
+                    this.GetNextToken();
                 }
             }
         }
 
         void Else()
         {
-            int i = ifcounter;
+            int i = this.ifcounter;
             while (true)
             {
-                if (lastToken == Token.If)
+                if (this.lastToken == Token.If)
                 {
                     i++;
                 }
-                else if (lastToken == Token.EndIf)
+                else if (this.lastToken == Token.EndIf)
                 {
-                    if (i == ifcounter)
+                    if (i == this.ifcounter)
                     {
-                        GetNextToken();
+                        this.GetNextToken();
                         return;
                     }
                     i--;
                 }
-                GetNextToken();
+                this.GetNextToken();
             }
         }
 
         void Label()
         {
-            string name = lex.Identifer;
-            if (!labels.ContainsKey(name)) labels.Add(name, lex.TokenMarker);
+            string name = this.lex.Identifer;
+            if (!this.labels.ContainsKey(name)) this.labels.Add(name, this.lex.TokenMarker);
 
-            GetNextToken();
-            Match(Token.NewLine);
+            this.GetNextToken();
+            this.Match(Token.NewLine);
         }
 
         void End()
         {
-            exit = true;
+            this.exit = true;
         }
 
         void Let()
         {
-            if (lastToken != Token.Equal)
+            if (this.lastToken != Token.Equal)
             {
-                Match(Token.Identifer);
-                GetNextToken();
-                Match(Token.Equal);
+                this.Match(Token.Identifer);
+                this.GetNextToken();
+                this.Match(Token.Equal);
             }
 
-            string id = lex.Identifer;
+            string id = this.lex.Identifer;
 
-            GetNextToken();
+            this.GetNextToken();
 
-            SetVar(id, Expr());
+            this.SetVar(id, this.Expr());
         }
 
         void Invoke()
         {
-            string name = lex.Identifer;
+            string name = this.lex.Identifer;
             List<Value> args = new List<Value>();
             while (true)
             {
                 if (this.GetNextToken() != Token.RParen)
                 {
-                    args.Add(Expr());
+                    args.Add(this.Expr());
                     if (this.lastToken == Token.Comma)
                         continue;
                 }
@@ -305,40 +305,40 @@ namespace Suconbu.Scripting
 
         void For()
         {
-            Match(Token.Identifer);
-            string var = lex.Identifer;
+            this.Match(Token.Identifer);
+            string var = this.lex.Identifer;
 
-            GetNextToken();
-            Match(Token.Equal);
+            this.GetNextToken();
+            this.Match(Token.Equal);
 
-            GetNextToken();
-            Value v = Expr();
+            this.GetNextToken();
+            Value v = this.Expr();
 
-            if (loops.ContainsKey(var))
+            if (this.loops.ContainsKey(var))
             {
-                loops[var] = lineMarker;
+                this.loops[var] = this.lineMarker;
             }
             else
             {
-                SetVar(var, v);
-                loops.Add(var, lineMarker);
+                this.SetVar(var, v);
+                this.loops.Add(var, this.lineMarker);
             }
 
-            Match(Token.To);
+            this.Match(Token.To);
 
-            GetNextToken();
-            v = Expr();
+            this.GetNextToken();
+            v = this.Expr();
 
-            if (vars[var].BinOp(v, Token.More).Real == 1)
+            if (this.vars[var].BinOp(v, Token.More).Real == 1)
             {
                 while (true)
                 {
-                    while (!(GetNextToken() == Token.Identifer && prevToken == Token.Next)) ;
-                    if (lex.Identifer == var)
+                    while (!(this.GetNextToken() == Token.Identifer && this.prevToken == Token.Next)) ;
+                    if (this.lex.Identifer == var)
                     {
-                        loops.Remove(var);
-                        GetNextToken();
-                        Match(Token.NewLine);
+                        this.loops.Remove(var);
+                        this.GetNextToken();
+                        this.Match(Token.NewLine);
                         break;
                     }
                 }
@@ -348,11 +348,11 @@ namespace Suconbu.Scripting
 
         void Next()
         {
-            Match(Token.Identifer);
-            string var = lex.Identifer;
-            vars[var] = vars[var].BinOp(new Value(1), Token.Plus);
-            lex.GoTo(new Marker(loops[var].Pointer - 1, loops[var].Line, loops[var].Column - 1));
-            lastToken = Token.NewLine;
+            this.Match(Token.Identifer);
+            string var = this.lex.Identifer;
+            this.vars[var] = this.vars[var].BinOp(new Value(1), Token.Plus);
+            this.lex.GoTo(new Marker(this.loops[var].Pointer - 1, this.loops[var].Line, this.loops[var].Column - 1));
+            this.lastToken = Token.NewLine;
         }
 
         Value Expr(int min = 0)
@@ -368,19 +368,19 @@ namespace Suconbu.Scripting
                 { Token.Caret, 4 }
             };
 
-            Value lhs = Primary();
+            Value lhs = this.Primary();
 
             while (true)
             {
-                if (lastToken < Token.Plus || lastToken > Token.And || precedens[lastToken] < min)
+                if (this.lastToken < Token.Plus || this.lastToken > Token.And || precedens[this.lastToken] < min)
                     break;
 
-                Token op = lastToken;
-                int prec = precedens[lastToken];
+                Token op = this.lastToken;
+                int prec = precedens[this.lastToken];
                 int assoc = 0; // 0 left, 1 right
                 int nextmin = assoc == 0 ? prec : prec + 1;
-                GetNextToken();
-                Value rhs = Expr(nextmin);
+                this.GetNextToken();
+                Value rhs = this.Expr(nextmin);
                 lhs = lhs.BinOp(rhs, op);
             }
 
@@ -391,56 +391,56 @@ namespace Suconbu.Scripting
         {
             Value prim = Value.Zero;
 
-            if (lastToken == Token.Value)
+            if (this.lastToken == Token.Value)
             {
-                prim = lex.Value;
-                GetNextToken();
+                prim = this.lex.Value;
+                this.GetNextToken();
             }
-            else if (lastToken == Token.Identifer)
+            else if (this.lastToken == Token.Identifer)
             {
-                if (vars.ContainsKey(lex.Identifer))
+                if (this.vars.ContainsKey(this.lex.Identifer))
                 {
-                    prim = vars[lex.Identifer];
+                    prim = this.vars[this.lex.Identifer];
                 }
-                else if (functions.ContainsKey(lex.Identifer))
+                else if (this.functions.ContainsKey(this.lex.Identifer))
                 {
-                    string name = lex.Identifer;
+                    string name = this.lex.Identifer;
                     List<Value> args = new List<Value>();
-                    GetNextToken();
-                    Match(Token.LParen);
+                    this.GetNextToken();
+                    this.Match(Token.LParen);
 
                 start:
-                    if (GetNextToken() != Token.RParen)
+                    if (this.GetNextToken() != Token.RParen)
                     {
-                        args.Add(Expr());
-                        if (lastToken == Token.Comma)
+                        args.Add(this.Expr());
+                        if (this.lastToken == Token.Comma)
                             goto start;
                     }
 
-                    prim = functions[name](this, args);
+                    prim = this.functions[name](this, args);
                 }
                 else
                 {
-                    Error("Undeclared variable " + lex.Identifer);
+                    this.Error("Undeclared variable " + this.lex.Identifer);
                 }
-                GetNextToken();
+                this.GetNextToken();
             }
-            else if (lastToken == Token.LParen)
+            else if (this.lastToken == Token.LParen)
             {
-                GetNextToken();
-                prim = Expr();
-                Match(Token.RParen);
-                GetNextToken();
+                this.GetNextToken();
+                prim = this.Expr();
+                this.Match(Token.RParen);
+                this.GetNextToken();
             }
-            else if (lastToken == Token.Plus || lastToken == Token.Minus)
+            else if (this.lastToken == Token.Plus || this.lastToken == Token.Minus)
             {
-                Token op = lastToken;
-                GetNextToken();
-                prim = Value.Zero.BinOp(Primary(), op); // we dont realy have a unary operators
+                Token op = this.lastToken;
+                this.GetNextToken();
+                prim = Value.Zero.BinOp(this.Primary(), op); // we dont realy have a unary operators
             }
             else
             {
-                Error("Unexpexted token in primary!");
+                this.Error("Unexpexted token in primary!");
             }
 
             return prim;
@@ -521,38 +521,38 @@ namespace Suconbu.Scripting
 
         public Lexer(string input)
         {
-            source = input;
-            sourceMarker = new Marker(0, 1, 1);
-            lastChar = source[0];
+            this.source = input;
+            this.sourceMarker = new Marker(0, 1, 1);
+            this.lastChar = this.source[0];
         }
 
         public void GoTo(Marker marker)
         {
-            sourceMarker = marker;
+            this.sourceMarker = marker;
         }
 
         char GetChar()
         {
-            sourceMarker.Column++;
-            sourceMarker.Pointer++;
+            this.sourceMarker.Column++;
+            this.sourceMarker.Pointer++;
 
-            if (sourceMarker.Pointer >= source.Length)
-                return lastChar = (char)0;
+            if (this.sourceMarker.Pointer >= this.source.Length)
+                return this.lastChar = (char)0;
 
-            if ((lastChar = source[sourceMarker.Pointer]) == '\n')
+            if ((this.lastChar = this.source[this.sourceMarker.Pointer]) == '\n')
             {
-                sourceMarker.Column = 1;
-                sourceMarker.Line++;
+                this.sourceMarker.Column = 1;
+                this.sourceMarker.Line++;
             }
-            return lastChar;
+            return this.lastChar;
         }
 
         public Token GetToken()
         {
-            while (lastChar == ' ' || lastChar == '\t' || lastChar == '\r')
-                GetChar();
+            while (this.lastChar == ' ' || this.lastChar == '\t' || this.lastChar == '\r')
+                this.GetChar();
 
-            TokenMarker = sourceMarker;
+            this.TokenMarker = this.sourceMarker;
 
             if (this.lastChar == '/' && this.GetChar() == '/')
             {
@@ -561,12 +561,12 @@ namespace Suconbu.Scripting
                 return Token.NewLine;
             }
 
-            if (char.IsLetter(lastChar))
+            if (char.IsLetter(this.lastChar))
             {
-                Identifer = lastChar.ToString();
-                while (this.IsLetterOrDigitOrUnderscore(GetChar())) Identifer += lastChar;
-                Debug.Print(Identifer);
-                switch (Identifer.ToUpper())
+                this.Identifer = this.lastChar.ToString();
+                while (this.IsLetterOrDigitOrUnderscore(this.GetChar())) this.Identifer += this.lastChar;
+                Debug.Print(this.Identifer);
+                switch (this.Identifer.ToUpper())
                 {
                     //case "PRINT": return Token.Print;
                     case "IF": return Token.If;
@@ -589,20 +589,20 @@ namespace Suconbu.Scripting
                 }
             }
 
-            if (char.IsDigit(lastChar))
+            if (char.IsDigit(this.lastChar))
             {
                 string num = "";
-                do { num += lastChar; } while (char.IsDigit(GetChar()) || lastChar == '.');
+                do { num += this.lastChar; } while (char.IsDigit(this.GetChar()) || this.lastChar == '.');
 
                 double real;
                 if (!double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out real))
                     throw new Exception("ERROR while parsing number");
-                Value = new Value(real);
+                this.Value = new Value(real);
                 return Token.Value;
             }
 
             Token tok = Token.Unkown;
-            switch (lastChar)
+            switch (this.lastChar)
             {
                 case '\n': tok = Token.NewLine; break;
                 case ':': tok = Token.Colon; break;
@@ -617,27 +617,27 @@ namespace Suconbu.Scripting
                 case '(': tok = Token.LParen; break;
                 case ')': tok = Token.RParen; break;
                 case '\'':
-                    while (lastChar != '\n') GetChar();
-                    GetChar();
-                    return GetToken();
+                    while (this.lastChar != '\n') this.GetChar();
+                    this.GetChar();
+                    return this.GetToken();
                 case '<':
-                    GetChar();
-                    if (lastChar == '>') tok = Token.NotEqual;
-                    else if (lastChar == '=') tok = Token.LessEqual;
+                    this.GetChar();
+                    if (this.lastChar == '>') tok = Token.NotEqual;
+                    else if (this.lastChar == '=') tok = Token.LessEqual;
                     else return Token.Less;
                     break;
                 case '>':
-                    GetChar();
-                    if (lastChar == '=') tok = Token.MoreEqual;
+                    this.GetChar();
+                    if (this.lastChar == '=') tok = Token.MoreEqual;
                     else return Token.More;
                     break;
                 case '"':
                     string str = "";
-                    while (GetChar() != '"')
+                    while (this.GetChar() != '"')
                     {
-                        if (lastChar == '\\')
+                        if (this.lastChar == '\\')
                         {
-                            switch (char.ToLower(GetChar()))
+                            switch (char.ToLower(this.GetChar()))
                             {
                                 case 'n': str += '\n'; break;
                                 case 't': str += '\t'; break;
@@ -647,17 +647,17 @@ namespace Suconbu.Scripting
                         }
                         else
                         {
-                            str += lastChar;
+                            str += this.lastChar;
                         }
                     }
-                    Value = new Value(str);
+                    this.Value = new Value(str);
                     tok = Token.Value;
                     break;
                 case (char)0:
                     return Token.EOF;
             }
 
-            GetChar();
+            this.GetChar();
             return tok;
         }
 
@@ -676,9 +676,9 @@ namespace Suconbu.Scripting
         public Marker(int pointer, int line, int column)
             : this()
         {
-            Pointer = pointer;
-            Line = line;
-            Column = Column;
+            this.Pointer = pointer;
+            this.Line = line;
+            this.Column = this.Column;
         }
     }
 
