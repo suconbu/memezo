@@ -4,14 +4,12 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace Suconbu.Scripting
 {
     public class OpeScript
     {
-        public bool HasPrint { get; set; } = true;
-        public bool HasInput { get; set; } = true;
-
         private Lexer lex;
         private Token prevToken;
         private Token lastToken;
@@ -20,8 +18,11 @@ namespace Suconbu.Scripting
         private Dictionary<string, Marker> labels;
         private Dictionary<string, Marker> loops;
 
-        public delegate Value BasicFunction(OpeScript interpreter, List<Value> args);
-        private Dictionary<string, BasicFunction> funcs;
+        public delegate Value OpeFunction(OpeScript interpreter, List<Value> args);
+        private Dictionary<string, OpeFunction> functions;
+
+        public delegate void OpeAction(OpeScript interpreter, List<Value> args);
+        private Dictionary<string, OpeAction> actions;
 
         private int ifcounter;
 
@@ -35,7 +36,8 @@ namespace Suconbu.Scripting
             this.vars = new Dictionary<string, Value>();
             this.labels = new Dictionary<string, Marker>();
             this.loops = new Dictionary<string, Marker>();
-            this.funcs = new Dictionary<string, BasicFunction>();
+            this.functions = new Dictionary<string, OpeFunction>();
+            this.actions = new Dictionary<string, OpeAction>();
             this.ifcounter = 0;
             BuiltIns.InstallAll(this);
         }
@@ -53,10 +55,14 @@ namespace Suconbu.Scripting
             else vars[name] = val;
         }
 
-        public void AddFunction(string name, BasicFunction function)
+        public void AddFunction(string name, OpeFunction function)
         {
-            if (!funcs.ContainsKey(name)) funcs.Add(name, function);
-            else funcs[name] = function;
+            this.functions[name] = function;
+        }
+
+        public void AddAction(string name, OpeAction action)
+        {
+            this.actions[name] = action;
         }
 
         public void Run()
@@ -107,12 +113,12 @@ namespace Suconbu.Scripting
 
         void Statment()
         {
-            Token keyword = lastToken;
-            GetNextToken();
+            Token keyword = this.lastToken;
+            var token = GetNextToken();
             switch (keyword)
             {
-                case Token.Print: Print(); break;
-                case Token.Input: Input(); break;
+                //case Token.Print: Print(); break;
+                //case Token.Input: Input(); break;
                 case Token.Goto: Goto(); break;
                 case Token.If: If(); break;
                 case Token.Else: Else(); break;
@@ -122,9 +128,26 @@ namespace Suconbu.Scripting
                 case Token.Let: Let(); break;
                 case Token.End: End(); break;
                 case Token.Identifer:
-                    if (lastToken == Token.Equal) Let();
-                    else if (lastToken == Token.Colon) Label();
-                    else Expr();
+                    if (token == Token.Equal)
+                    {
+                        this.Let();
+                    }
+                    else if (token == Token.Colon)
+                    {
+                        this.Label();
+                    }
+                    else
+                    {
+                        if (token == Token.LParen &&
+                            (this.functions.ContainsKey(this.lex.Identifer) || this.actions.ContainsKey(this.lex.Identifer)))
+                        {
+                            this.Invoke();
+                        }
+                        else
+                        {
+                            this.Expr();
+                        }
+                    }
                     break;
                 case Token.EOF:
                     exit = true;
@@ -140,37 +163,10 @@ namespace Suconbu.Scripting
             }
         }
 
-        void Print()
-        {
-            if (!HasPrint)
-                Error("Print command not allowed");
-
-            Console.WriteLine(Expr().ToString());
-        }
-
-        void Input()
-        {
-            if (!HasInput)
-                Error("Input command not allowed");
-
-            while (true)
-            {
-                Match(Token.Identifer);
-
-                if (!vars.ContainsKey(lex.Identifer)) vars.Add(lex.Identifer, new Value());
-
-                string input = Console.ReadLine();
-                double d;
-                if (double.TryParse(input, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out d))
-                    vars[lex.Identifer] = new Value(d);
-                else
-                    vars[lex.Identifer] = new Value(input);
-
-                GetNextToken();
-                if (lastToken != Token.Comma) break;
-                GetNextToken();
-            }
-        }
+        //void Print()
+        //{
+        //    Console.WriteLine(Expr().ToString());
+        //}
 
         void Goto()
         {
@@ -288,6 +284,25 @@ namespace Suconbu.Scripting
             SetVar(id, Expr());
         }
 
+        void Invoke()
+        {
+            string name = lex.Identifer;
+            List<Value> args = new List<Value>();
+            while (true)
+            {
+                if (this.GetNextToken() != Token.RParen)
+                {
+                    args.Add(Expr());
+                    if (this.lastToken == Token.Comma)
+                        continue;
+                }
+                break;
+            }
+            if (this.functions.TryGetValue(name, out var function)) function(this, args);
+            else if (this.actions.TryGetValue(name, out var action)) action(this, args);
+            this.GetNextToken();
+        }
+
         void For()
         {
             Match(Token.Identifer);
@@ -387,7 +402,7 @@ namespace Suconbu.Scripting
                 {
                     prim = vars[lex.Identifer];
                 }
-                else if (funcs.ContainsKey(lex.Identifer))
+                else if (functions.ContainsKey(lex.Identifer))
                 {
                     string name = lex.Identifer;
                     List<Value> args = new List<Value>();
@@ -402,7 +417,7 @@ namespace Suconbu.Scripting
                             goto start;
                     }
 
-                    prim = funcs[name](null, args);
+                    prim = functions[name](this, args);
                 }
                 else
                 {
@@ -544,9 +559,10 @@ namespace Suconbu.Scripting
                 Identifer = lastChar.ToString();
                 while (char.IsLetterOrDigit(GetChar()))
                     Identifer += lastChar;
+                Debug.Print(Identifer);
                 switch (Identifer.ToUpper())
                 {
-                    case "PRINT": return Token.Print;
+                    //case "PRINT": return Token.Print;
                     case "IF": return Token.If;
                     case "ENDIF": return Token.EndIf;
                     case "THEN": return Token.Then;
@@ -555,7 +571,7 @@ namespace Suconbu.Scripting
                     case "TO": return Token.To;
                     case "NEXT": return Token.Next;
                     case "GOTO": return Token.Goto;
-                    case "INPUT": return Token.Input;
+                    //case "INPUT": return Token.Input;
                     case "LET": return Token.Let;
                     case "GOSUB": return Token.Gosub;
                     case "RETURN": return Token.Return;
@@ -676,7 +692,7 @@ namespace Suconbu.Scripting
         To,
         Next,
         Goto,
-        Input,
+        //Input,
         Let,
         Gosub,
         Return,

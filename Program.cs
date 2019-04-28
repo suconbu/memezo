@@ -17,6 +17,7 @@ namespace Suconbu.Scripting
                 {
                     var code = File.ReadAllText(args.First());
                     var script = new OpeScript(code);
+                    script.AddAction("print", (s, a) => Console.WriteLine(a.First().String));
                     script.Run();
                 }
                 catch (Exception e)
