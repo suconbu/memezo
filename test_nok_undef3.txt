@@ -1,0 +1,2 @@
+// EXPECT:UndeclaredIdentifier: maxxx
+a = maxxx(10, 20)

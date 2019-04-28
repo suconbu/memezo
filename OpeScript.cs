@@ -12,6 +12,26 @@ namespace Suconbu.Scripting
         public delegate Value OpeFunction(OpeScript interpreter, List<Value> args);
         public delegate void OpeAction(OpeScript interpreter, List<Value> args);
 
+        public struct ErrorInfo
+        {
+            public string Message { get; private set; }
+            public int Line { get; private set; }
+            public int Column { get; private set; }
+
+            public ErrorInfo(string message, Marker marker)
+            {
+                this.Message = message;
+                this.Line = marker.Line;
+                this.Column = marker.Column;
+            }
+
+            public override string ToString()
+            {
+                return $"{this.Message} at {this.Line},{this.Column}";
+            }
+        }
+        public ErrorInfo Error { get; private set; }
+
         Lexer lex;
         Token prevToken;
         Token lastToken;
@@ -33,11 +53,12 @@ namespace Suconbu.Scripting
             BuiltIns.InstallAll(this);
         }
 
-        public Value GetVar(string name)
+        public bool TryGetVar(string name, out Value value)
         {
-            if (!this.vars.ContainsKey(name))
-                throw new Exception("Variable with name " + name + " does not exist.");
-            return this.vars[name];
+            value = Value.Zero;
+            if (this.vars.ContainsKey(name)) return false;
+            value = this.vars[name];
+            return true;
         }
 
         public void SetVar(string name, Value val)
@@ -56,11 +77,21 @@ namespace Suconbu.Scripting
             this.actions[name] = action;
         }
 
-        public void Run()
+        public bool Run()
         {
-            this.exit = false;
-            this.GetNextToken();
-            while (!this.exit) this.Statment();
+            bool result = false;
+            try
+            {
+                this.exit = false;
+                this.GetNextToken();
+                while (!this.exit) this.Statment();
+                result = true;
+            }
+            catch (Exception ex)
+            {
+                this.Error = new ErrorInfo(ex.Message, this.lineMarker);
+            }
+            return result;
         }
 
         void Statment()
@@ -80,26 +111,10 @@ namespace Suconbu.Scripting
                 case Token.EndFor: this.EndFor(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer:
-                    if (token == Token.Let)
-                    {
-                        this.Let();
-                    }
-                    else if (token == Token.Colon)
-                    {
-                        this.Label();
-                    }
-                    else
-                    {
-                        if (token == Token.LParen &&
-                            (this.functions.ContainsKey(this.lex.Identifer) || this.actions.ContainsKey(this.lex.Identifer)))
-                        {
-                            this.Invoke();
-                        }
-                        else
-                        {
-                            this.Expr();
-                        }
-                    }
+                    if (token == Token.Let) this.Let();
+                    else if (token == Token.Colon) this.Label();
+                    else if (token == Token.LParen) this.Invoke();
+                    else this.Expr();
                     break;
                 case Token.NewLine:
                     break;
@@ -107,20 +122,19 @@ namespace Suconbu.Scripting
                     this.exit = true;
                     break;
                 default:
-                    this.Error("Unexpected keyword: " + keyword);
+                    this.RiseError($"UnexpectedToken: {keyword}");
                     break;
             }
         }
 
-        void Error(string text)
+        void RiseError(string message)
         {
-            throw new Exception(text + " at line: " + this.lineMarker.Line);
+            throw new Exception(message);
         }
 
         void Match(Token tok)
         {
-            if (this.lastToken != tok)
-                this.Error("Expect " + tok.ToString() + " got " + this.lastToken.ToString());
+            if (this.lastToken != tok) this.RiseError($"UnexpectedToken: {tok}");
         }
 
         Token GetNextToken()
@@ -147,10 +161,7 @@ namespace Suconbu.Scripting
                         if (this.lex.Identifer == name)
                             break;
                     }
-                    if (this.lastToken == Token.EOF)
-                    {
-                        this.Error("Cannot find label named " + name);
-                    }
+                    if (this.lastToken == Token.EOF) this.RiseError($"CannotFindLabel: {name}");
                 }
             }
             this.lex.GoTo(this.labels[name]);
@@ -277,6 +288,7 @@ namespace Suconbu.Scripting
             this.Match(Token.RParen);
             if (this.functions.TryGetValue(name, out var function)) function(this, args);
             else if (this.actions.TryGetValue(name, out var action)) action(this, args);
+            else this.RiseError($"UndeclaredIdentifier: {name}");
             this.GetNextToken();
         }
 
@@ -327,7 +339,7 @@ namespace Suconbu.Scripting
 
         void EndFor()
         {
-            if(this.loops.Count <= 0) this.Error("Unexpected " + this.lastToken);
+            if(this.loops.Count <= 0) this.RiseError($"UnexpectedToken: {this.lastToken}");
 
             var loop = this.loops.Peek();
             this.vars[loop.VarName] = this.vars[loop.VarName].BinOp(new Value(1), Token.Plus);
@@ -403,7 +415,7 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    this.Error("Undeclared variable " + this.lex.Identifer);
+                    this.RiseError($"UndeclaredIdentifier: {this.lex.Identifer}");
                 }
                 this.GetNextToken();
             }
@@ -422,7 +434,7 @@ namespace Suconbu.Scripting
             }
             else
             {
-                this.Error("Unexpexted token in primary!");
+                this.RiseError($"UnexpectedToken: {this.lastToken}");
             }
 
             return prim;
@@ -796,7 +808,7 @@ namespace Suconbu.Scripting
             else
             {
                 if (a.Type == ValueType.String)
-                    throw new Exception("Cannot do binop on strings(except +).");
+                    throw new Exception($"CannotSupportOperationForString: {tok}");
 
                 switch (tok)
                 {
@@ -812,7 +824,7 @@ namespace Suconbu.Scripting
                     case Token.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
                 }
             }
-            throw new Exception("Unkown binop");
+            throw new Exception($"UnknownBinaryOperator: {tok}");
         }
 
         public override string ToString()
