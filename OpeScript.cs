@@ -554,6 +554,13 @@ namespace Suconbu.Scripting
 
             TokenMarker = sourceMarker;
 
+            if (this.lastChar == '/' && this.GetChar() == '/')
+            {
+                // Comment
+                while (this.lastChar != '\n') this.GetChar();
+                return Token.NewLine;
+            }
+
             if (char.IsLetter(lastChar))
             {
                 Identifer = lastChar.ToString();
@@ -577,10 +584,6 @@ namespace Suconbu.Scripting
                     case "END": return Token.End;
                     case "OR": return Token.Or;
                     case "AND": return Token.And;
-                    case "REM":
-                        while (lastChar != '\n') GetChar();
-                        GetChar();
-                        return GetToken();
                     default:
                         return Token.Identifer;
                 }
@@ -700,7 +703,7 @@ namespace Suconbu.Scripting
         //Let,
         //Gosub,
         //Return,
-        Rem,
+        //Rem,
         End,
 
         NewLine,
