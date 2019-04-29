@@ -1,0 +1,2 @@
+// NOK:UnexpectedToken: Value
+10

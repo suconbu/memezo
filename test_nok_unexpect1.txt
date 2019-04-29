@@ -1,2 +1,0 @@
-// EXPECT:UnexpectedToken: Value
-10

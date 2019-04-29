@@ -20,13 +20,12 @@ namespace Suconbu.Scripting.Memezo
         Lexer lex;
         Token prevToken;
         Token lastToken;
-        Marker statementMarker;
-        Marker lastTokenMarker;
+        Location statementLocation;
+        Location lastTokenLocation;
         bool exit;
-        int ifDepth;
 
         readonly Dictionary<string, Value> vars = new Dictionary<string, Value>();
-        readonly Dictionary<string, Marker> labels = new Dictionary<string, Marker>();
+        readonly Dictionary<string, Location> labels = new Dictionary<string, Location>();
         readonly Stack<Loop> loops = new Stack<Loop>();
 
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
@@ -74,7 +73,7 @@ namespace Suconbu.Scripting.Memezo
             }
             catch (Exception ex)
             {
-                this.Error = new ErrorInfo(ex.Message, this.lastTokenMarker);
+                this.Error = new ErrorInfo(ex.Message, this.lastTokenLocation);
             }
             return result;
         }
@@ -82,7 +81,6 @@ namespace Suconbu.Scripting.Memezo
         void Initialize()
         {
             this.exit = false;
-            this.ifDepth = 0;
             this.TotalStatementCount = 0;
             this.TotalTokenCount = 0;
         }
@@ -91,7 +89,7 @@ namespace Suconbu.Scripting.Memezo
         {
             this.TotalStatementCount++;
 
-            this.statementMarker = this.lex.TokenMarker;
+            this.statementLocation = this.lex.TokenLocation;
 
             Token keyword = this.lastToken;
             var token = this.GetNextToken();
@@ -101,7 +99,7 @@ namespace Suconbu.Scripting.Memezo
                 case Token.If: this.If(); break;
                 case Token.Elif: this.Else(); break;
                 case Token.Else: this.Else(); break;
-                case Token.EndIf: this.EndIf();  break;
+                case Token.EndIf: break;
                 case Token.For: this.For(); break;
                 case Token.EndFor: this.EndFor(); break;
                 case Token.End: this.End(); break;
@@ -114,8 +112,6 @@ namespace Suconbu.Scripting.Memezo
                 case Token.NewLine:
                     break;
                 case Token.EOF:
-                    if (this.ifDepth > 0) this.RiseError("MissingEndIf");
-                    if (this.loops.Count > 0) this.RiseError("MissingEndFor");
                     this.exit = true;
                     break;
                 default:
@@ -131,7 +127,7 @@ namespace Suconbu.Scripting.Memezo
 
         void Match(Token token)
         {
-            if (this.lastToken != token) this.RiseError($"UnexpectedToken: {token}");
+            if (this.lastToken != token) this.RiseError($"MissingToken: {token}");
         }
 
         Token GetNextToken()
@@ -140,7 +136,7 @@ namespace Suconbu.Scripting.Memezo
 
             this.prevToken = this.lastToken;
             this.lastToken = this.lex.GetToken();
-            this.lastTokenMarker = this.lex.TokenMarker;
+            this.lastTokenLocation = this.lex.TokenLocation;
 
             return this.lastToken;
         }
@@ -157,14 +153,14 @@ namespace Suconbu.Scripting.Memezo
                     if (this.GetNextToken() == Token.Colon && this.prevToken == Token.Identifer)
                     {
                         if (!this.labels.ContainsKey(this.lex.Identifer))
-                            this.labels.Add(this.lex.Identifer, this.lex.TokenMarker);
+                            this.labels.Add(this.lex.Identifer, this.lex.CurrentLocation);
                         if (this.lex.Identifer == name)
                             break;
                     }
                     if (this.lastToken == Token.EOF) this.RiseError($"CannotFindLabel: {name}");
                 }
             }
-            this.lex.GoTo(this.labels[name]);
+            this.lex.Move(this.labels[name]);
             this.lastToken = Token.NewLine;
         }
 
@@ -178,7 +174,7 @@ namespace Suconbu.Scripting.Memezo
             if (result)
             {
                 // Condition is not satisfied.
-                int depth = this.ifDepth;
+                int depth = 0;
                 while (true)
                 {
                     if (this.lastToken == Token.If)
@@ -187,7 +183,7 @@ namespace Suconbu.Scripting.Memezo
                     }
                     else if (this.lastToken == Token.Elif)
                     {
-                        if (depth == this.ifDepth)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             this.If(); // Recursive
@@ -196,18 +192,17 @@ namespace Suconbu.Scripting.Memezo
                     }
                     else if (this.lastToken == Token.Else)
                     {
-                        if (depth == this.ifDepth)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             this.Match(Token.Colon);
                             this.GetNextToken();
-                            this.ifDepth++;
                             return;
                         }
                     }
                     else if (this.lastToken == Token.EndIf)
                     {
-                        if (depth == this.ifDepth)
+                        if (depth == 0)
                         {
                             this.GetNextToken();
                             return;
@@ -217,15 +212,13 @@ namespace Suconbu.Scripting.Memezo
                     this.GetNextToken();
                 }
             }
-            this.ifDepth++;
         }
 
         void Else()
         {
             // After if clause executed.
-            if (this.ifDepth <= 0) this.RiseError("UnexpectedToken: Else/Elif");
 
-            int depth = this.ifDepth;
+            int depth = 0;
             while (true)
             {
                 if (this.lastToken == Token.If)
@@ -234,7 +227,7 @@ namespace Suconbu.Scripting.Memezo
                 }
                 else if (this.lastToken == Token.EndIf)
                 {
-                    if (depth == this.ifDepth)
+                    if (depth == 0)
                     {
                         this.GetNextToken();
                         break;
@@ -243,19 +236,12 @@ namespace Suconbu.Scripting.Memezo
                 }
                 this.GetNextToken();
             }
-            if (--this.ifDepth < 0) this.RiseError("TooManyEndIf");
-        }
-
-        void EndIf()
-        {
-            if (--this.ifDepth < 0) this.RiseError("TooManyEndIf");
         }
 
         void Label()
         {
             string name = this.lex.Identifer;
-            if (!this.labels.ContainsKey(name)) this.labels.Add(name, this.lex.TokenMarker);
-
+            if (!this.labels.ContainsKey(name)) this.labels.Add(name, this.lex.CurrentLocation);
             this.GetNextToken();
             this.Match(Token.NewLine);
         }
@@ -313,14 +299,10 @@ namespace Suconbu.Scripting.Memezo
             this.GetNextToken();
             Value v = this.Expr();
 
-            if (this.loops.Count == 0 || this.loops.Peek().VarName != var)
+            if (this.loops.Count == 0 || this.loops.Peek().Var != var)
             {
                 this.SetVar(var, v);
-                this.loops.Push(new Loop()
-                {
-                    StartMarker = new Marker(this.statementMarker.Pointer - 1, this.statementMarker.Line, this.statementMarker.Column - 1),
-                    VarName = var
-                });
+                this.loops.Push(new Loop(this.statementLocation, var));
             }
 
             this.Match(Token.To);
@@ -351,8 +333,8 @@ namespace Suconbu.Scripting.Memezo
             if(this.loops.Count <= 0) this.RiseError($"TooManyEndFor");
 
             var loop = this.loops.Peek();
-            this.vars[loop.VarName] = this.vars[loop.VarName].BinaryOperation(new Value(1), Token.Plus);
-            this.lex.GoTo(loop.StartMarker);
+            this.vars[loop.Var] = this.vars[loop.Var].BinaryOperation(new Value(1), Token.Plus);
+            this.lex.Move(loop.Location);
             this.lastToken = Token.NewLine;
         }
 
@@ -453,19 +435,19 @@ namespace Suconbu.Scripting.Memezo
     public struct ErrorInfo
     {
         public string Message { get; private set; }
-        public int Line { get; private set; }
-        public int Column { get; private set; }
+        public int LineNo { get; private set; }
+        public int ColumnNo { get; private set; }
 
-        public ErrorInfo(string message, Marker marker)
+        internal ErrorInfo(string message, Location location)
         {
             this.Message = message;
-            this.Line = marker.Line;
-            this.Column = marker.Column;
+            this.LineNo = location.Line + 1;
+            this.ColumnNo = location.Column + 1;
         }
 
         public override string ToString()
         {
-            return !string.IsNullOrEmpty(this.Message) ? $"'{this.Message}' at line:{this.Line} column:{this.Column}" : string.Empty;
+            return !string.IsNullOrEmpty(this.Message) ? $"'{this.Message}' at line:{this.LineNo} column:{this.ColumnNo}" : string.Empty;
         }
     }
 
@@ -618,46 +600,47 @@ namespace Suconbu.Scripting.Memezo
     /// </summary>
     class Lexer
     {
-        public Marker TokenMarker { get; set; }
-        public string Identifer { get; set; }
-        public Value Value { get; set; }
+        public Location TokenLocation { get; private set; }
+        public Location CurrentLocation { get { return this.currentLocation; } }
+        public string Identifer { get; private set; }
+        public Value Value { get; private set; }
 
         readonly string source;
-        Marker sourceMarker;
-        char lastChar;
+        Location currentLocation;
+        char currentChar;
 
         public Lexer(string input)
         {
             this.source = input;
-            this.sourceMarker = new Marker(0, 1, 1);
-            this.lastChar = this.source[0];
+            this.currentLocation = new Location();
+            this.currentChar = (this.source.Length > 0) ? this.source[0] : (char)0;
         }
 
-        public void GoTo(Marker marker)
+        public void Move(Location location)
         {
-            this.sourceMarker = marker;
-            this.lastChar = this.source[marker.Pointer];
+            this.currentLocation = location;
+            this.currentChar = this.source[location.CharIndex];
         }
 
         public Token GetToken()
         {
-            while (this.lastChar == ' ' || this.lastChar == '\t' || this.lastChar == '\r')
+            while (this.currentChar == ' ' || this.currentChar == '\t' || this.currentChar == '\r')
                 this.GetChar();
 
-            this.TokenMarker = this.sourceMarker;
+            this.TokenLocation = this.currentLocation;
 
-            if (this.lastChar == '/' && this.GetChar() == '/')
+            if (this.currentChar == '/' && this.GetChar() == '/')
             {
                 // Line comment
-                while (this.lastChar != '\n') this.GetChar();
+                while (this.currentChar != '\n') this.GetChar();
                 return Token.NewLine;
             }
 
-            if (char.IsLetter(this.lastChar))
+            if (char.IsLetter(this.currentChar))
             {
-                this.Identifer = this.lastChar.ToString();
-                while (this.IsLetterOrDigitOrUnderscore(this.GetChar())) this.Identifer += this.lastChar;
-                Debug.Print(this.Identifer);
+                this.Identifer = this.currentChar.ToString();
+                while (this.IsLetterOrDigitOrUnderscore(this.GetChar())) this.Identifer += this.currentChar;
+                //Debug.Print(this.Identifer);
                 switch (this.Identifer.ToUpper())
                 {
                     case "IF": return Token.If;
@@ -674,10 +657,10 @@ namespace Suconbu.Scripting.Memezo
                 }
             }
 
-            if (char.IsDigit(this.lastChar))
+            if (char.IsDigit(this.currentChar))
             {
                 string num = "";
-                do { num += this.lastChar; } while (char.IsDigit(this.GetChar()) || this.lastChar == '.');
+                do { num += this.currentChar; } while (char.IsDigit(this.GetChar()) || this.currentChar == '.');
 
                 double real;
                 if (!double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out real))
@@ -687,7 +670,7 @@ namespace Suconbu.Scripting.Memezo
             }
 
             Token token = Token.Unkown;
-            switch (this.lastChar)
+            switch (this.currentChar)
             {
                 case '\n': token = Token.NewLine; break;
                 case ':': token = Token.Colon; break;
@@ -695,12 +678,12 @@ namespace Suconbu.Scripting.Memezo
                 case ',': token = Token.Comma; break;
                 case '=':
                     this.GetChar();
-                    if (this.lastChar == '=') token = Token.Equal;
+                    if (this.currentChar == '=') token = Token.Equal;
                     else return Token.Let;
                     break;
                 case '!':
                     this.GetChar();
-                    if (this.lastChar == '=') token = Token.NotEqual;
+                    if (this.currentChar == '=') token = Token.NotEqual;
                     else return Token.Unkown;
                     break;
                 case '+': token = Token.Plus; break;
@@ -711,25 +694,25 @@ namespace Suconbu.Scripting.Memezo
                 case '(': token = Token.LParen; break;
                 case ')': token = Token.RParen; break;
                 case '\'':
-                    while (this.lastChar != '\n') this.GetChar();
+                    while (this.currentChar != '\n') this.GetChar();
                     this.GetChar();
                     return this.GetToken();
                 case '<':
                     this.GetChar();
-                    if (this.lastChar == '=') token = Token.LessEqual;
+                    if (this.currentChar == '=') token = Token.LessEqual;
                     else return Token.Less;
                     break;
                 case '>':
                     this.GetChar();
-                    if (this.lastChar == '=') token = Token.MoreEqual;
+                    if (this.currentChar == '=') token = Token.MoreEqual;
                     else return Token.More;
                     break;
                 case '"':
                     string str = "";
                     while (this.GetChar() != '"')
                     {
-                        if (this.lastChar == 0) return Token.EOF;
-                        if (this.lastChar == '\\')
+                        if (this.currentChar == 0) return Token.EOF;
+                        if (this.currentChar == '\\')
                         {
                             switch (char.ToLower(this.GetChar()))
                             {
@@ -741,7 +724,7 @@ namespace Suconbu.Scripting.Memezo
                         }
                         else
                         {
-                            str += this.lastChar;
+                            str += this.currentChar;
                         }
                     }
                     this.Value = new Value(str);
@@ -749,12 +732,12 @@ namespace Suconbu.Scripting.Memezo
                     break;
                 case '&':
                     this.GetChar();
-                    if (this.lastChar == '&') token = Token.And;
+                    if (this.currentChar == '&') token = Token.And;
                     else return Token.Unkown;
                     break;
                 case '|':
                     this.GetChar();
-                    if (this.lastChar == '|') token = Token.Or;
+                    if (this.currentChar == '|') token = Token.Or;
                     else return Token.Unkown;
                     break;
                 case (char)0:
@@ -767,18 +750,21 @@ namespace Suconbu.Scripting.Memezo
 
         char GetChar()
         {
-            this.sourceMarker.Column++;
-            this.sourceMarker.Pointer++;
-
-            if (this.sourceMarker.Pointer >= this.source.Length)
-                return this.lastChar = (char)0;
-
-            if ((this.lastChar = this.source[this.sourceMarker.Pointer]) == '\n')
+            this.currentLocation.CharIndex++;
+            if (this.currentChar == '\n')
             {
-                this.sourceMarker.Column = 1;
-                this.sourceMarker.Line++;
+                this.currentLocation.Column = 0;
+                this.currentLocation.Line++;
             }
-            return this.lastChar;
+            else
+            {
+                this.currentLocation.Column++;
+            }
+
+            this.currentChar = (this.currentLocation.CharIndex < this.source.Length) ?
+                this.source[this.currentLocation.CharIndex] : (char)0;
+
+            return this.currentChar;
         }
 
         bool IsLetterOrDigitOrUnderscore(char c)
@@ -790,28 +776,23 @@ namespace Suconbu.Scripting.Memezo
     /// <summary>
     /// The location in source code.
     /// </summary>
-    public struct Marker
+    struct Location
     {
-        // Zero based.
-        public int Pointer { get; set; }
-        // One based.
+        public int CharIndex { get; set; }
         public int Line { get; set; }
-        // One based.
         public int Column { get; set; }
-
-        public Marker(int pointer, int line, int column)
-            : this()
-        {
-            this.Pointer = pointer;
-            this.Line = line;
-            this.Column = this.Column;
-        }
     }
 
     struct Loop
     {
-        public Marker StartMarker;
-        public string VarName;
+        public Location Location;
+        public string Var;
+
+        public Loop(Location location, string var)
+        {
+            this.Location = location;
+            this.Var = var;
+        }
     }
 
     enum Token

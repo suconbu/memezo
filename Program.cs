@@ -17,25 +17,27 @@ namespace Suconbu.Scripting
             {
                 int totalCount = 0;
                 int okCount = 0;
+                //foreach (string file in Directory.GetFiles(args[0], "test_ok_goto1.txt"))
                 foreach (string file in Directory.GetFiles(args[0], "test*.txt"))
                 {
                     var firstLine = File.ReadLines(file).FirstOrDefault();
-                    bool expectResult = !file.Contains("nok");
+                    bool expectResult = true;
                     string expectOutput = null;
-                    var match = Regex.Match(File.ReadLines(file).FirstOrDefault(), @"^// EXPECT:(.+)");
+                    var match = Regex.Match(firstLine, @"^// (\w+):(.+)");
                     if(match.Success)
                     {
-                        expectOutput = match.Groups[1].Value;
+                        expectResult = match.Groups[1].Value == "OK";
+                        expectOutput = match.Groups[2].Value;
                     }
                     Console.Write($"{Path.GetFileName(file),-30} - ");
 
                     var code = File.ReadAllText(file);
                     var interpreter = new Memezo.Interpreter(code);
                     var output = new StringBuilder();
-                    interpreter.AddAction("print", (a) =>
-                        output.Append(a.Count > 0 ? a.First().Convert(Memezo.ValueType.String).String : null));
-                    interpreter.AddAction("printline", (a) =>
-                        output.AppendLine(a.Count > 0 ? a.First().Convert(Memezo.ValueType.String).String : null));
+                    interpreter.AddAction("print", (a) => output.Append(a.Count > 0 ? a.First().ToString() : null));
+                    interpreter.AddAction("printline", (a) => output.AppendLine(a.Count > 0 ? a.First().ToString() : null));
+                    interpreter.AddAction("debug", (a) => Debug.Write(a.Count > 0 ? a.First().ToString() : null));
+                    interpreter.AddAction("debugline", (a) => Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null));
 
                     var sw = Stopwatch.StartNew();
                     var result = interpreter.Run();

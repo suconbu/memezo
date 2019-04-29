@@ -1,0 +1,6 @@
+// OK:12
+goto X
+X:
+print(1)
+X:
+print(2)

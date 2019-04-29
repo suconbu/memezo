@@ -1,0 +1,20 @@
+// OK:
+a = 1 
+C:
+debug("a:" + a)
+if a == 1:
+	debug("->A")
+	goto A
+elif a == 2:
+A:
+	debug("->B")
+	goto B
+else:
+B:
+	a = a + 1
+	if a < 10:
+		debug("->C")
+		goto C
+	endif
+endif
+print(a)

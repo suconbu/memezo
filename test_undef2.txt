@@ -1,0 +1,3 @@
+// NOK:UndeclaredIdentifier: abssss
+a = 10
+abssss(a)

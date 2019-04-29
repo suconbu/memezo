@@ -1,0 +1,4 @@
+// NOK:CannotFindLabel
+goto X
+Y:
+print("y")

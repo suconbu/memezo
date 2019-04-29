@@ -1,0 +1,7 @@
+// OK:
+for i = 0 to 5:
+	for j = 0 to 5:
+		goto X
+	endfor
+X:
+endfor

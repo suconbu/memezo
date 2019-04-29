@@ -1,0 +1,3 @@
+// NOK:UnexpectedToken: NewLine
+if
+end
