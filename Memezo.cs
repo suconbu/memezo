@@ -14,6 +14,8 @@ namespace Suconbu.Scripting.Memezo
         public delegate Value FunctionHandler(List<Value> args);
         public delegate void ActionHandler(List<Value> args);
         public ErrorInfo Error { get; private set; }
+        public int TotalStatementCount { get; private set; }
+        public int TotalTokenCount { get; private set; }
 
         Lexer lex;
         Token prevToken;
@@ -81,10 +83,14 @@ namespace Suconbu.Scripting.Memezo
         {
             this.exit = false;
             this.ifDepth = 0;
+            this.TotalStatementCount = 0;
+            this.TotalTokenCount = 0;
         }
 
         void Statement()
         {
+            this.TotalStatementCount++;
+
             this.statementMarker = this.lex.TokenMarker;
 
             Token keyword = this.lastToken;
@@ -130,6 +136,8 @@ namespace Suconbu.Scripting.Memezo
 
         Token GetNextToken()
         {
+            this.TotalTokenCount++;
+
             this.prevToken = this.lastToken;
             this.lastToken = this.lex.GetToken();
             this.lastTokenMarker = this.lex.TokenMarker;

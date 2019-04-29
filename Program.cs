@@ -58,7 +58,7 @@ namespace Suconbu.Scripting
                         Console.Write($"OK: {interpreter.Error}");
                         ++okCount;
                     }
-                    Console.WriteLine($" ({elapsed:#,0}ms)");
+                    Console.WriteLine($" --- {elapsed:#,0}ms statements:{interpreter.TotalStatementCount} tokens:{interpreter.TotalTokenCount}");
                     ++totalCount;
                 }
                 Console.WriteLine("----------------------------------------");
