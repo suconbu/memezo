@@ -7,7 +7,7 @@
     <ProjectGuid>{AA2F23B8-C755-40FE-BC6D-D127649E1A7A}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <RootNamespace>Suconbu.Scripting</RootNamespace>
-    <AssemblyName>OpeScript</AssemblyName>
+    <AssemblyName>MemezoScript</AssemblyName>
     <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>

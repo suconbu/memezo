@@ -13,9 +13,12 @@ namespace Suconbu.Scripting.Memezo
     {
         public delegate Value FunctionHandler(List<Value> args);
         public delegate void ActionHandler(List<Value> args);
+
+        public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
         public int TotalStatementCount { get; private set; }
         public int TotalTokenCount { get; private set; }
+        public Value? LastResultValue { get; private set; }
 
         Lexer lex;
         Token prevToken;
@@ -24,31 +27,16 @@ namespace Suconbu.Scripting.Memezo
         Location lastTokenLocation;
         bool exit;
 
-        readonly Dictionary<string, Value> vars = new Dictionary<string, Value>();
+        //readonly Dictionary<string, Value> vars = new Dictionary<string, Value>();
         readonly Dictionary<string, Location> labels = new Dictionary<string, Location>();
         readonly Stack<Loop> loops = new Stack<Loop>();
 
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
         readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
 
-        public Interpreter(string input)
+        public Interpreter()
         {
-            this.lex = new Lexer(input);
             BuiltinFunction.InstallAll(this);
-        }
-
-        public bool TryGetVar(string name, out Value value)
-        {
-            value = Value.Zero;
-            if (this.vars.ContainsKey(name)) return false;
-            value = this.vars[name];
-            return true;
-        }
-
-        public void SetVar(string name, Value val)
-        {
-            if (!this.vars.ContainsKey(name)) this.vars.Add(name, val);
-            else this.vars[name] = val;
         }
 
         public void AddFunction(string name, FunctionHandler function)
@@ -61,12 +49,13 @@ namespace Suconbu.Scripting.Memezo
             this.actions[name] = action;
         }
 
-        public bool Run()
+        public bool Run(string input)
         {
             bool result = false;
             try
             {
                 this.Initialize();
+                this.lex = new Lexer(input);
                 this.GetNextToken();
                 while (!this.exit) this.Statement();
                 result = true;
@@ -83,6 +72,7 @@ namespace Suconbu.Scripting.Memezo
             this.exit = false;
             this.TotalStatementCount = 0;
             this.TotalTokenCount = 0;
+            this.LastResultValue = null;
         }
 
         void Statement()
@@ -258,7 +248,7 @@ namespace Suconbu.Scripting.Memezo
 
             this.GetNextToken();
 
-            this.SetVar(id, this.Expr());
+            this.Vars[id] = this.Expr();
         }
 
         void Invoke()
@@ -276,7 +266,7 @@ namespace Suconbu.Scripting.Memezo
                 break;
             }
             this.Match(Token.RParen);
-            if (this.functions.TryGetValue(name, out var function)) function(args);
+            if (this.functions.TryGetValue(name, out var function)) this.LastResultValue = function(args);
             else if (this.actions.TryGetValue(name, out var action)) action(args);
             else this.RiseError($"UndeclaredIdentifier: {name}");
             this.GetNextToken();
@@ -291,20 +281,20 @@ namespace Suconbu.Scripting.Memezo
             this.Match(Token.Let);
 
             this.GetNextToken();
-            Value v = this.Expr();
+            Value value = this.Expr();
 
             if (this.loops.Count == 0 || this.loops.Peek().Var != var)
             {
-                this.SetVar(var, v);
+                this.Vars[var] = value;
                 this.loops.Push(new Loop(this.statementLocation, var));
             }
 
             this.Match(Token.To);
 
             this.GetNextToken();
-            v = this.Expr();
+            value = this.Expr();
 
-            if (this.vars[var].BinaryOperation(v, Token.More).Number == 1)
+            if (this.Vars[var].BinaryOperation(value, Token.More).Number == 1)
             {
                 int counter = 0;
                 while (counter >= 0)
@@ -324,7 +314,7 @@ namespace Suconbu.Scripting.Memezo
             if(this.loops.Count <= 0) this.RiseError($"TooManyEndFor");
 
             var loop = this.loops.Peek();
-            this.vars[loop.Var] = this.vars[loop.Var].BinaryOperation(new Value(1), Token.Plus);
+            this.Vars[loop.Var] = this.Vars[loop.Var].BinaryOperation(new Value(1), Token.Plus);
             this.lex.Move(loop.Location);
             this.lastToken = Token.NewLine;
         }
@@ -372,9 +362,9 @@ namespace Suconbu.Scripting.Memezo
             }
             else if (this.lastToken == Token.Identifer)
             {
-                if (this.vars.ContainsKey(this.lex.Identifer))
+                if (this.Vars.ContainsKey(this.lex.Identifer))
                 {
-                    prim = this.vars[this.lex.Identifer];
+                    prim = this.Vars[this.lex.Identifer];
                 }
                 else if (this.functions.ContainsKey(this.lex.Identifer))
                 {
