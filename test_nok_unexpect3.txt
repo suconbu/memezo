@@ -1,0 +1,4 @@
+// EXPECT:UnexpectedToken: Else
+if else 1:
+	a = 1
+endif

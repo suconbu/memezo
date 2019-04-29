@@ -20,33 +20,42 @@ namespace Suconbu.Scripting
                 foreach (string file in Directory.GetFiles(args[0], "test*.txt"))
                 {
                     var firstLine = File.ReadLines(file).FirstOrDefault();
-                    string expectedError = null;
-                    var match = Regex.Match(File.ReadLines(file).FirstOrDefault(), @"^// EXPECT:(\w+)");
+                    bool expectResult = !file.Contains("nok");
+                    string expectOutput = null;
+                    var match = Regex.Match(File.ReadLines(file).FirstOrDefault(), @"^// EXPECT:(.+)");
                     if(match.Success)
                     {
-                        expectedError = match.Groups[1].Value;
+                        expectOutput = match.Groups[1].Value;
                     }
-                    Console.Write($"{Path.GetFileName(file),-20} - ");
+                    Console.Write($"{Path.GetFileName(file),-30} - ");
 
                     var code = File.ReadAllText(file);
-                    var script = new OpeScript(code);
+                    var interpreter = new Memezo.Interpreter(code);
                     var output = new StringBuilder();
-                    script.AddAction("print", (s, a) => output.Append(a.Count > 0 ? a.First().Convert(ValueType.String).String : null));
-                    script.AddAction("printline", (s, a) => output.AppendLine(a.Count > 0 ? a.First().Convert(ValueType.String).String : null));
+                    interpreter.AddAction("print", (a) =>
+                        output.Append(a.Count > 0 ? a.First().Convert(Memezo.ValueType.String).String : null));
+                    interpreter.AddAction("printline", (a) =>
+                        output.AppendLine(a.Count > 0 ? a.First().Convert(Memezo.ValueType.String).String : null));
 
                     var sw = Stopwatch.StartNew();
-                    var result = script.Run();
+                    var result = interpreter.Run();
                     var elapsed = sw.ElapsedMilliseconds;
 
-                    if (result && expectedError != null)
-                        Console.Write($"NOK: Expected {expectedError}, but not occurred.");
-                    else if (!result && expectedError == null)
-                        Console.Write($"NOK: Unexpected {script.Error}.");
-                    else if (!result && !script.Error.Message.StartsWith(expectedError))
-                        Console.Write($"NOK: Expected {expectedError}, but {script.Error} occurred.");
+                    if (expectResult && !result)
+                        // 期待通り成功せず
+                        Console.Write($"NOK: Unexpected {interpreter.Error}.");
+                    else if (expectResult && result && expectOutput != null && output.ToString() != expectOutput)
+                        // 期待通り成功したけど出力が違う
+                        Console.Write($"NOK: Expected '{expectOutput}', but output was '{output}'.");
+                    else if (!expectResult && result)
+                        // 期待通り失敗せず
+                        Console.Write($"NOK: Expected '{expectOutput}', but not occurred.");
+                    else if (!expectResult && !result && expectOutput != null && !interpreter.Error.Message.StartsWith(expectOutput))
+                        // 期待通り失敗したけどエラーが違う
+                        Console.Write($"NOK: Expected '{expectOutput}', but {interpreter.Error} occurred.");
                     else
                     {
-                        Console.Write("OK");
+                        Console.Write($"OK: {interpreter.Error}");
                         ++okCount;
                     }
                     Console.WriteLine($" ({elapsed:#,0}ms)");

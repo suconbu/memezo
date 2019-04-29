@@ -1,56 +1,39 @@
-﻿// OpeScript - The script language for automated operation.
+﻿// MemezoScript - The script language for automated operation.
 // Based on https://github.com/Timu5/BasicSharp
 
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-namespace Suconbu.Scripting
+namespace Suconbu.Scripting.Memezo
 {
-    public class OpeScript
+    public enum ValueType { Number, String }
+
+    public class Interpreter
     {
-        public delegate Value OpeFunction(OpeScript interpreter, List<Value> args);
-        public delegate void OpeAction(OpeScript interpreter, List<Value> args);
-
-        public struct ErrorInfo
-        {
-            public string Message { get; private set; }
-            public int Line { get; private set; }
-            public int Column { get; private set; }
-
-            public ErrorInfo(string message, Marker marker)
-            {
-                this.Message = message;
-                this.Line = marker.Line;
-                this.Column = marker.Column;
-            }
-
-            public override string ToString()
-            {
-                return $"{this.Message} at {this.Line},{this.Column}";
-            }
-        }
+        public delegate Value FunctionHandler(List<Value> args);
+        public delegate void ActionHandler(List<Value> args);
         public ErrorInfo Error { get; private set; }
 
         Lexer lex;
         Token prevToken;
         Token lastToken;
+        Marker statementMarker;
+        Marker lastTokenMarker;
+        bool exit;
+        int ifDepth;
 
         readonly Dictionary<string, Value> vars = new Dictionary<string, Value>();
         readonly Dictionary<string, Marker> labels = new Dictionary<string, Marker>();
         readonly Stack<Loop> loops = new Stack<Loop>();
 
-        readonly Dictionary<string, OpeFunction> functions = new Dictionary<string, OpeFunction>();
-        readonly Dictionary<string, OpeAction> actions = new Dictionary<string, OpeAction>();
+        readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
+        readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
 
-        Marker lineMarker;
-
-        bool exit;
-
-        public OpeScript(string input)
+        public Interpreter(string input)
         {
             this.lex = new Lexer(input);
-            BuiltIns.InstallAll(this);
+            BuiltinFunction.InstallAll(this);
         }
 
         public bool TryGetVar(string name, out Value value)
@@ -67,12 +50,12 @@ namespace Suconbu.Scripting
             else this.vars[name] = val;
         }
 
-        public void AddFunction(string name, OpeFunction function)
+        public void AddFunction(string name, FunctionHandler function)
         {
             this.functions[name] = function;
         }
 
-        public void AddAction(string name, OpeAction action)
+        public void AddAction(string name, ActionHandler action)
         {
             this.actions[name] = action;
         }
@@ -82,21 +65,27 @@ namespace Suconbu.Scripting
             bool result = false;
             try
             {
-                this.exit = false;
+                this.Initialize();
                 this.GetNextToken();
-                while (!this.exit) this.Statment();
+                while (!this.exit) this.Statement();
                 result = true;
             }
             catch (Exception ex)
             {
-                this.Error = new ErrorInfo(ex.Message, this.lineMarker);
+                this.Error = new ErrorInfo(ex.Message, this.lastTokenMarker);
             }
             return result;
         }
 
-        void Statment()
+        void Initialize()
         {
-            this.lineMarker = this.lex.TokenMarker;
+            this.exit = false;
+            this.ifDepth = 0;
+        }
+
+        void Statement()
+        {
+            this.statementMarker = this.lex.TokenMarker;
 
             Token keyword = this.lastToken;
             var token = this.GetNextToken();
@@ -106,7 +95,7 @@ namespace Suconbu.Scripting
                 case Token.If: this.If(); break;
                 case Token.Elif: this.Else(); break;
                 case Token.Else: this.Else(); break;
-                case Token.EndIf: break;
+                case Token.EndIf: this.EndIf();  break;
                 case Token.For: this.For(); break;
                 case Token.EndFor: this.EndFor(); break;
                 case Token.End: this.End(); break;
@@ -119,6 +108,8 @@ namespace Suconbu.Scripting
                 case Token.NewLine:
                     break;
                 case Token.EOF:
+                    if (this.ifDepth > 0) this.RiseError("MissingEndIf");
+                    if (this.loops.Count > 0) this.RiseError("MissingEndFor");
                     this.exit = true;
                     break;
                 default:
@@ -132,15 +123,16 @@ namespace Suconbu.Scripting
             throw new Exception(message);
         }
 
-        void Match(Token tok)
+        void Match(Token token)
         {
-            if (this.lastToken != tok) this.RiseError($"UnexpectedToken: {tok}");
+            if (this.lastToken != token) this.RiseError($"UnexpectedToken: {token}");
         }
 
         Token GetNextToken()
         {
             this.prevToken = this.lastToken;
             this.lastToken = this.lex.GetToken();
+            this.lastTokenMarker = this.lex.TokenMarker;
 
             return this.lastToken;
         }
@@ -170,7 +162,7 @@ namespace Suconbu.Scripting
 
         void If()
         {
-            bool result = (this.Expr().BinOp(new Value(0), Token.Equal).Number == 1);
+            bool result = (this.Expr().BinaryOperation(new Value(0), Token.Equal).Number == 1);
 
             this.Match(Token.Colon);
             this.GetNextToken();
@@ -178,7 +170,7 @@ namespace Suconbu.Scripting
             if (result)
             {
                 // Condition is not satisfied.
-                int depth = 0;
+                int depth = this.ifDepth;
                 while (true)
                 {
                     if (this.lastToken == Token.If)
@@ -187,26 +179,27 @@ namespace Suconbu.Scripting
                     }
                     else if (this.lastToken == Token.Elif)
                     {
-                        if (depth == 0)
+                        if (depth == this.ifDepth)
                         {
                             this.GetNextToken();
-                            this.If();
+                            this.If(); // Recursive
                             return;
                         }
                     }
                     else if (this.lastToken == Token.Else)
                     {
-                        if (depth == 0)
+                        if (depth == this.ifDepth)
                         {
                             this.GetNextToken();
                             this.Match(Token.Colon);
                             this.GetNextToken();
+                            this.ifDepth++;
                             return;
                         }
                     }
                     else if (this.lastToken == Token.EndIf)
                     {
-                        if (depth == 0)
+                        if (depth == this.ifDepth)
                         {
                             this.GetNextToken();
                             return;
@@ -216,12 +209,15 @@ namespace Suconbu.Scripting
                     this.GetNextToken();
                 }
             }
+            this.ifDepth++;
         }
 
         void Else()
         {
             // After if clause executed.
-            int depth = 0;
+            if (this.ifDepth <= 0) this.RiseError("UnexpectedToken: Else/Elif");
+
+            int depth = this.ifDepth;
             while (true)
             {
                 if (this.lastToken == Token.If)
@@ -230,15 +226,21 @@ namespace Suconbu.Scripting
                 }
                 else if (this.lastToken == Token.EndIf)
                 {
-                    if (depth == 0)
+                    if (depth == this.ifDepth)
                     {
                         this.GetNextToken();
-                        return;
+                        break;
                     }
                     depth--;
                 }
                 this.GetNextToken();
             }
+            if (--this.ifDepth < 0) this.RiseError("TooManyEndIf");
+        }
+
+        void EndIf()
+        {
+            if (--this.ifDepth < 0) this.RiseError("TooManyEndIf");
         }
 
         void Label()
@@ -286,8 +288,8 @@ namespace Suconbu.Scripting
                 break;
             }
             this.Match(Token.RParen);
-            if (this.functions.TryGetValue(name, out var function)) function(this, args);
-            else if (this.actions.TryGetValue(name, out var action)) action(this, args);
+            if (this.functions.TryGetValue(name, out var function)) function(args);
+            else if (this.actions.TryGetValue(name, out var action)) action(args);
             else this.RiseError($"UndeclaredIdentifier: {name}");
             this.GetNextToken();
         }
@@ -308,7 +310,7 @@ namespace Suconbu.Scripting
                 this.SetVar(var, v);
                 this.loops.Push(new Loop()
                 {
-                    Marker = new Marker(this.lineMarker.Pointer - 1, this.lineMarker.Line, this.lineMarker.Column - 1),
+                    StartMarker = new Marker(this.statementMarker.Pointer - 1, this.statementMarker.Line, this.statementMarker.Column - 1),
                     VarName = var
                 });
             }
@@ -321,7 +323,7 @@ namespace Suconbu.Scripting
             this.Match(Token.Colon);
             this.GetNextToken();
 
-            if (this.vars[var].BinOp(v, Token.More).Number == 1)
+            if (this.vars[var].BinaryOperation(v, Token.More).Number == 1)
             {
                 int counter = 0;
                 while (counter >= 0)
@@ -334,16 +336,15 @@ namespace Suconbu.Scripting
                 this.GetNextToken();
                 this.Match(Token.NewLine);
             }
-
         }
 
         void EndFor()
         {
-            if(this.loops.Count <= 0) this.RiseError($"UnexpectedToken: {this.lastToken}");
+            if(this.loops.Count <= 0) this.RiseError($"TooManyEndFor");
 
             var loop = this.loops.Peek();
-            this.vars[loop.VarName] = this.vars[loop.VarName].BinOp(new Value(1), Token.Plus);
-            this.lex.GoTo(loop.Marker);
+            this.vars[loop.VarName] = this.vars[loop.VarName].BinaryOperation(new Value(1), Token.Plus);
+            this.lex.GoTo(loop.StartMarker);
             this.lastToken = Token.NewLine;
         }
 
@@ -373,7 +374,7 @@ namespace Suconbu.Scripting
                 int nextmin = assoc == 0 ? prec : prec + 1;
                 this.GetNextToken();
                 Value rhs = this.Expr(nextmin);
-                lhs = lhs.BinOp(rhs, op);
+                lhs = lhs.BinaryOperation(rhs, op);
             }
 
             return lhs;
@@ -411,7 +412,7 @@ namespace Suconbu.Scripting
                         break;
                     }
 
-                    prim = this.functions[name](this, args);
+                    prim = this.functions[name](args);
                 }
                 else
                 {
@@ -430,7 +431,7 @@ namespace Suconbu.Scripting
             {
                 Token op = this.lastToken;
                 this.GetNextToken();
-                prim = Value.Zero.BinOp(this.Primary(), op); // we dont realy have a unary operators
+                prim = Value.Zero.BinaryOperation(this.Primary(), op); // we dont realy have a unary operators
             }
             else
             {
@@ -441,9 +442,123 @@ namespace Suconbu.Scripting
         }
     }
 
-    class BuiltIns
+    public struct ErrorInfo
     {
-        public static void InstallAll(OpeScript interpreter)
+        public string Message { get; private set; }
+        public int Line { get; private set; }
+        public int Column { get; private set; }
+
+        public ErrorInfo(string message, Marker marker)
+        {
+            this.Message = message;
+            this.Line = marker.Line;
+            this.Column = marker.Column;
+        }
+
+        public override string ToString()
+        {
+            return !string.IsNullOrEmpty(this.Message) ? $"'{this.Message}' at line:{this.Line} column:{this.Column}" : string.Empty;
+        }
+    }
+
+    public struct Value
+    {
+        public static readonly Value Zero = new Value(0);
+        public ValueType Type { get; set; }
+        public double Number { get; set; }
+        public string String { get; set; }
+
+        public Value(double number) : this()
+        {
+            this.Type = ValueType.Number;
+            this.Number = number;
+        }
+
+        public Value(string str) : this()
+        {
+            this.Type = ValueType.String;
+            this.String = str;
+        }
+
+        public Value Convert(ValueType type)
+        {
+            if (this.Type != type)
+            {
+                switch (type)
+                {
+                    case ValueType.Number:
+                        this.Number = double.Parse(this.String);
+                        this.Type = ValueType.Number;
+                        break;
+                    case ValueType.String:
+                        this.String = this.Number.ToString();
+                        this.Type = ValueType.String;
+                        break;
+                }
+            }
+            return this;
+        }
+
+        public override string ToString()
+        {
+            return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
+        }
+
+        internal Value BinaryOperation(Value b, Token token)
+        {
+            Value a = this;
+            if (a.Type != b.Type)
+            {
+                if (a.Type > b.Type)
+                    b = b.Convert(a.Type);
+                else
+                    a = a.Convert(b.Type);
+            }
+
+            if (token == Token.Plus)
+            {
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number + b.Number) :
+                    new Value(a.String + b.String);
+            }
+            else if (token == Token.Equal)
+            {
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number == b.Number ? 1 : 0) :
+                    new Value(a.String == b.String ? 1 : 0);
+            }
+            else if (token == Token.NotEqual)
+            {
+                return (a.Type == ValueType.Number) ?
+                    new Value(a.Number == b.Number ? 0 : 1) :
+                    new Value(a.String == b.String ? 0 : 1);
+            }
+            else
+            {
+                if (a.Type == ValueType.String)
+                    throw new Exception($"CannotSupportOperationForString: {token}");
+
+                switch (token)
+                {
+                    case Token.Minus: return new Value(a.Number - b.Number);
+                    case Token.Asterisk: return new Value(a.Number * b.Number);
+                    case Token.Slash: return new Value(a.Number / b.Number);
+                    case Token.Caret: return new Value(Math.Pow(a.Number, b.Number));
+                    case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
+                    case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
+                    case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
+                    case Token.MoreEqual: return new Value(a.Number >= b.Number ? 1 : 0);
+                    case Token.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
+                    case Token.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
+                }
+            }
+            throw new Exception($"UnknownBinaryOperator: {token}");
+        }
+    }
+
+    class BuiltinFunction
+    {
+        public static void InstallAll(Interpreter interpreter)
         {
             interpreter.AddFunction("str", Str);
             interpreter.AddFunction("num", Num);
@@ -453,53 +568,55 @@ namespace Suconbu.Scripting
             interpreter.AddFunction("not", Not);
         }
 
-        public static Value Str(OpeScript interpreter, List<Value> args)
+        public static Value Str(List<Value> args)
         {
             if (args.Count < 1) throw new ArgumentException();
             return args[0].Convert(ValueType.String);
         }
 
-        public static Value Num(OpeScript interpreter, List<Value> args)
+        public static Value Num(List<Value> args)
         {
             if (args.Count < 1) throw new ArgumentException();
             return args[0].Convert(ValueType.Number);
         }
 
-        public static Value Abs(OpeScript interpreter, List<Value> args)
+        public static Value Abs(List<Value> args)
         {
             if (args.Count < 1) throw new ArgumentException();
             return new Value(Math.Abs(args[0].Number));
         }
 
-        public static Value Min(OpeScript interpreter, List<Value> args)
+        public static Value Min(List<Value> args)
         {
             if (args.Count < 2) throw new ArgumentException();
             return new Value(Math.Min(args[0].Number, args[1].Number));
         }
 
-        public static Value Max(OpeScript interpreter, List<Value> args)
+        public static Value Max(List<Value> args)
         {
             if (args.Count < 2) throw new ArgumentException();
             return new Value(Math.Max(args[0].Number, args[1].Number));
         }
 
-        public static Value Not(OpeScript interpreter, List<Value> args)
+        public static Value Not(List<Value> args)
         {
             if (args.Count < 1) throw new ArgumentException();
             return new Value(args[0].Number == 0 ? 1 : 0);
         }
     }
 
-    public class Lexer
+    /// <summary>
+    /// Lexical analyzyer
+    /// </summary>
+    class Lexer
     {
+        public Marker TokenMarker { get; set; }
+        public string Identifer { get; set; }
+        public Value Value { get; set; }
+
         readonly string source;
         Marker sourceMarker;
         char lastChar;
-
-        public Marker TokenMarker { get; set; }
-
-        public string Identifer { get; set; }
-        public Value Value { get; set; }
 
         public Lexer(string input)
         {
@@ -512,22 +629,6 @@ namespace Suconbu.Scripting
         {
             this.sourceMarker = marker;
             this.lastChar = this.source[marker.Pointer];
-        }
-
-        char GetChar()
-        {
-            this.sourceMarker.Column++;
-            this.sourceMarker.Pointer++;
-
-            if (this.sourceMarker.Pointer >= this.source.Length)
-                return this.lastChar = (char)0;
-
-            if ((this.lastChar = this.source[this.sourceMarker.Pointer]) == '\n')
-            {
-                this.sourceMarker.Column = 1;
-                this.sourceMarker.Line++;
-            }
-            return this.lastChar;
         }
 
         public Token GetToken()
@@ -577,42 +678,42 @@ namespace Suconbu.Scripting
                 return Token.Value;
             }
 
-            Token tok = Token.Unkown;
+            Token token = Token.Unkown;
             switch (this.lastChar)
             {
-                case '\n': tok = Token.NewLine; break;
-                case ':': tok = Token.Colon; break;
-                case ';': tok = Token.Semicolon; break;
-                case ',': tok = Token.Comma; break;
+                case '\n': token = Token.NewLine; break;
+                case ':': token = Token.Colon; break;
+                case ';': token = Token.Semicolon; break;
+                case ',': token = Token.Comma; break;
                 case '=':
                     this.GetChar();
-                    if (this.lastChar == '=') tok = Token.Equal;
+                    if (this.lastChar == '=') token = Token.Equal;
                     else return Token.Let;
                     break;
                 case '!':
                     this.GetChar();
-                    if (this.lastChar == '=') tok = Token.NotEqual;
+                    if (this.lastChar == '=') token = Token.NotEqual;
                     else return Token.Unkown;
                     break;
-                case '+': tok = Token.Plus; break;
-                case '-': tok = Token.Minus; break;
-                case '/': tok = Token.Slash; break;
-                case '*': tok = Token.Asterisk; break;
-                case '^': tok = Token.Caret; break;
-                case '(': tok = Token.LParen; break;
-                case ')': tok = Token.RParen; break;
+                case '+': token = Token.Plus; break;
+                case '-': token = Token.Minus; break;
+                case '/': token = Token.Slash; break;
+                case '*': token = Token.Asterisk; break;
+                case '^': token = Token.Caret; break;
+                case '(': token = Token.LParen; break;
+                case ')': token = Token.RParen; break;
                 case '\'':
                     while (this.lastChar != '\n') this.GetChar();
                     this.GetChar();
                     return this.GetToken();
                 case '<':
                     this.GetChar();
-                    if (this.lastChar == '=') tok = Token.LessEqual;
+                    if (this.lastChar == '=') token = Token.LessEqual;
                     else return Token.Less;
                     break;
                 case '>':
                     this.GetChar();
-                    if (this.lastChar == '=') tok = Token.MoreEqual;
+                    if (this.lastChar == '=') token = Token.MoreEqual;
                     else return Token.More;
                     break;
                 case '"':
@@ -636,16 +737,16 @@ namespace Suconbu.Scripting
                         }
                     }
                     this.Value = new Value(str);
-                    tok = Token.Value;
+                    token = Token.Value;
                     break;
                 case '&':
                     this.GetChar();
-                    if (this.lastChar == '&') tok = Token.And;
+                    if (this.lastChar == '&') token = Token.And;
                     else return Token.Unkown;
                     break;
                 case '|':
                     this.GetChar();
-                    if (this.lastChar == '|') tok = Token.Or;
+                    if (this.lastChar == '|') token = Token.Or;
                     else return Token.Unkown;
                     break;
                 case (char)0:
@@ -653,7 +754,23 @@ namespace Suconbu.Scripting
             }
 
             this.GetChar();
-            return tok;
+            return token;
+        }
+
+        char GetChar()
+        {
+            this.sourceMarker.Column++;
+            this.sourceMarker.Pointer++;
+
+            if (this.sourceMarker.Pointer >= this.source.Length)
+                return this.lastChar = (char)0;
+
+            if ((this.lastChar = this.source[this.sourceMarker.Pointer]) == '\n')
+            {
+                this.sourceMarker.Column = 1;
+                this.sourceMarker.Line++;
+            }
+            return this.lastChar;
         }
 
         bool IsLetterOrDigitOrUnderscore(char c)
@@ -662,6 +779,9 @@ namespace Suconbu.Scripting
         }
     }
 
+    /// <summary>
+    /// The location in source code.
+    /// </summary>
     public struct Marker
     {
         // Zero based.
@@ -682,11 +802,11 @@ namespace Suconbu.Scripting
 
     struct Loop
     {
-        public Marker Marker;
+        public Marker StartMarker;
         public string VarName;
     }
 
-    public enum Token
+    enum Token
     {
         Unkown,
 
@@ -730,106 +850,5 @@ namespace Suconbu.Scripting
         RParen,
 
         EOF = -1   //End Of File
-    }
-
-    public enum ValueType
-    {
-        Number,
-        String
-    }
-
-    public struct Value
-    {
-        public static readonly Value Zero = new Value(0);
-        public ValueType Type { get; set; }
-        public double Number { get; set; }
-        public string String { get; set; }
-
-        public Value(double number) : this()
-        {
-            this.Type = ValueType.Number;
-            this.Number = number;
-        }
-
-        public Value(string str) : this()
-        {
-            this.Type = ValueType.String;
-            this.String = str;
-        }
-
-        public Value Convert(ValueType type)
-        {
-            if (this.Type != type)
-            {
-                switch (type)
-                {
-                    case ValueType.Number:
-                        this.Number = double.Parse(this.String);
-                        this.Type = ValueType.Number;
-                        break;
-                    case ValueType.String:
-                        this.String = this.Number.ToString();
-                        this.Type = ValueType.String;
-                        break;
-                }
-            }
-            return this;
-        }
-
-        public Value BinOp(Value b, Token tok)
-        {
-            Value a = this;
-            if (a.Type != b.Type)
-            {
-                if (a.Type > b.Type)
-                    b = b.Convert(a.Type);
-                else
-                    a = a.Convert(b.Type);
-            }
-
-            if (tok == Token.Plus)
-            {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number + b.Number) :
-                    new Value(a.String + b.String);
-            }
-            else if (tok == Token.Equal)
-            {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number == b.Number ? 1 : 0) :
-                    new Value(a.String == b.String ? 1 : 0);
-            }
-            else if (tok == Token.NotEqual)
-            {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number == b.Number ? 0 : 1) :
-                    new Value(a.String == b.String ? 0 : 1);
-            }
-            else
-            {
-                if (a.Type == ValueType.String)
-                    throw new Exception($"CannotSupportOperationForString: {tok}");
-
-                switch (tok)
-                {
-                    case Token.Minus: return new Value(a.Number - b.Number);
-                    case Token.Asterisk: return new Value(a.Number * b.Number);
-                    case Token.Slash: return new Value(a.Number / b.Number);
-                    case Token.Caret: return new Value(Math.Pow(a.Number, b.Number));
-                    case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
-                    case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
-                    case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
-                    case Token.MoreEqual: return new Value(a.Number >= b.Number ? 1 : 0);
-                    case Token.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
-                    case Token.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
-                }
-            }
-            throw new Exception($"UnknownBinaryOperator: {tok}");
-        }
-
-        public override string ToString()
-        {
-            return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
-        }
     }
 }
