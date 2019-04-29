@@ -167,10 +167,6 @@ namespace Suconbu.Scripting.Memezo
         void If()
         {
             bool result = (this.Expr().BinaryOperation(new Value(0), Token.Equal).Number == 1);
-
-            this.Match(Token.Colon);
-            this.GetNextToken();
-
             if (result)
             {
                 // Condition is not satisfied.
@@ -195,8 +191,6 @@ namespace Suconbu.Scripting.Memezo
                         if (depth == 0)
                         {
                             this.GetNextToken();
-                            this.Match(Token.Colon);
-                            this.GetNextToken();
                             return;
                         }
                     }
@@ -209,7 +203,7 @@ namespace Suconbu.Scripting.Memezo
                         }
                         depth--;
                     }
-                    this.GetNextToken();
+                    if (this.GetNextToken() == Token.EOF) break;
                 }
             }
         }
@@ -234,7 +228,7 @@ namespace Suconbu.Scripting.Memezo
                     }
                     depth--;
                 }
-                this.GetNextToken();
+                if (this.GetNextToken() == Token.EOF) break;
             }
         }
 
@@ -310,9 +304,6 @@ namespace Suconbu.Scripting.Memezo
             this.GetNextToken();
             v = this.Expr();
 
-            this.Match(Token.Colon);
-            this.GetNextToken();
-
             if (this.vars[var].BinaryOperation(v, Token.More).Number == 1)
             {
                 int counter = 0;
@@ -324,7 +315,7 @@ namespace Suconbu.Scripting.Memezo
                 }
                 this.loops.Pop();
                 this.GetNextToken();
-                this.Match(Token.NewLine);
+                //this.Match(Token.NewLine);
             }
         }
 

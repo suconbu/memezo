@@ -1,7 +1,7 @@
 // NOK:TooManyEndFor
 i = 0
 goto X
-for i = 0 to 5:
+for i = 0 to 5
 X:
 	print(i)
 endfor
