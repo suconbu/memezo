@@ -85,7 +85,6 @@ namespace Suconbu.Scripting.Memezo
             //Debug.WriteLine($"Statement keyword:{keyword}");
             switch (keyword)
             {
-                case Token.Goto: this.Goto(); break;
                 case Token.If: this.If(); break;
                 case Token.Elif: this.Else(); break;
                 case Token.Else: this.Else(); break;
@@ -128,30 +127,6 @@ namespace Suconbu.Scripting.Memezo
             this.currentTokenLocation = this.lex.TokenLocation;
 
             return this.currentToken;
-        }
-
-        void Goto()
-        {
-            this.GetNextToken(Token.Identifer);
-
-            string name = this.lex.Identifer;
-            Debug.WriteLine($"{this.lex.CurrentLocation.Line + 1}: Goto {name}");
-            if (!this.labels.ContainsKey(name))
-            {
-                while (true)
-                {
-                    if (this.GetNextToken() == Token.Colon && this.prevToken == Token.Identifer)
-                    {
-                        if (!this.labels.ContainsKey(this.lex.Identifer))
-                            this.labels.Add(this.lex.Identifer, this.lex.CurrentLocation);
-                        if (this.lex.Identifer == name)
-                            break;
-                    }
-                    if (this.currentToken == Token.EOF) this.RiseError($"CannotFindLabel: {name}");
-                }
-            }
-            this.lex.Move(this.labels[name]);
-            this.currentToken = Token.NewLine;
         }
 
         void If()
@@ -233,7 +208,7 @@ namespace Suconbu.Scripting.Memezo
             if (token == Token.Assign) this.Assign();
             else if (token == Token.Colon) this.Label();
             else if (token == Token.LParen) this.Invoke();
-            else this.RiseError("UnexpectedIdentifier");//this.Expr();
+            else this.RiseError($"UnexpectedIdentifier: {this.lex.Identifer}");//this.Expr();
         }
 
         void ShowValue()
@@ -615,9 +590,9 @@ namespace Suconbu.Scripting.Memezo
             {
                 // Line comment
                 this.ReadChar();
-                while (this.currentChar != '\n') this.ReadChar();
+                while (this.currentChar != '\n' && this.currentChar != (char)0) this.ReadChar();
                 this.ReadChar();
-                return Token.NewLine;
+                return (this.currentChar == '\n') ? Token.NewLine : Token.EOF;
             }
 
             if (char.IsLetter(this.currentChar))
@@ -634,7 +609,6 @@ namespace Suconbu.Scripting.Memezo
                     case "FOR": return Token.For;
                     case "TO": return Token.To;
                     case "ENDFOR": return Token.EndFor;
-                    case "GOTO": return Token.Goto;
                     case "END": return Token.End;
                     default:
                         return Token.Identifer;
@@ -810,7 +784,6 @@ namespace Suconbu.Scripting.Memezo
         For,
         To,
         EndFor,
-        Goto,
         End,
 
         NewLine,
