@@ -1,10 +1,11 @@
-// OK:a,1b,c,123,h,2b,e,h,3b,e,f,4b,e,h,5b,d,g,i,
+// OK:	\"_a,1b,c,123,h,2b,e,h,3b,e,f,4b,e,h,5b,d,g,i,
 
 // comment
 =10
 count = 1
 max(20,30)//comment
 count = min(5 , 100)//comment
+print("\t\\\"\_")
 print("a,")
 
 for i = 1 to count:
@@ -19,7 +20,7 @@ for i = 1 to count:
 		print("e,")
 	endif
 
-	if 2 < i && i < 4:
+	if 2 < i and i < 4:
 		print("f,")
 	else:
 		if i >= 5:

@@ -605,6 +605,8 @@ namespace Suconbu.Scripting.Memezo
                 case "to": token = Token.To; break;
                 case "endfor": token = Token.EndFor; break;
                 case "end": token = Token.End; break;
+                case "and": token = Token.And; break;
+                case "or": token = Token.Or; break;
             }
             return token;
         }
@@ -655,8 +657,6 @@ namespace Suconbu.Scripting.Memezo
                 this.Value = this.ReadString();
                 token = Token.Value;
             }
-            else if (this.currentChar == '&' && this.nextChar == '&') { token = Token.And; this.ReadChar(); }
-            else if (this.currentChar == '|' && this.nextChar == '|') { token = Token.Or; this.ReadChar(); }
             else token = Token.Unkown;
             this.ReadChar();
             return token;
@@ -677,6 +677,7 @@ namespace Suconbu.Scripting.Memezo
                     else if (c == 't') s.Append('\t');
                     else if (c == '\\') s.Append('\\');
                     else if (c == '"') s.Append('"');
+                    else s.Append(c);
                 }
                 else
                 {
