@@ -94,7 +94,7 @@ namespace Suconbu.Scripting.Memezo
                 case Token.EndFor: this.EndFor(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer: this.Identifier(); break;
-                case Token.Value: this.DirectValue(); break;
+                case Token.Assign: this.ShowValue(); break;
                 case Token.NewLine: break;
                 case Token.EOF: this.exit = true; break;
                 default: this.RiseError($"UnexpectedToken: {keyword}"); break;
@@ -124,7 +124,7 @@ namespace Suconbu.Scripting.Memezo
 
             this.prevToken = this.currentToken;
             //this.prevTokenLocation = this.lex.TokenLocation;
-            this.currentToken = this.lex.GetToken();
+            this.currentToken = this.lex.ReadToken();
             this.currentTokenLocation = this.lex.TokenLocation;
 
             return this.currentToken;
@@ -229,38 +229,32 @@ namespace Suconbu.Scripting.Memezo
 
         void Identifier()
         {
-            var token = this.GetNextToken();
-            //var token = this.lex.PeekToken();
+            var token = this.lex.PeekToken();
             if (token == Token.Assign) this.Assign();
             else if (token == Token.Colon) this.Label();
             else if (token == Token.LParen) this.Invoke();
-            else this.Expr();
+            else this.RiseError("UnexpectedIdentifier");//this.Expr();
         }
 
-        void DirectValue()
+        void ShowValue()
         {
-            this.Expr();
+            this.GetNextToken();
+            this.LastResultValue = this.Expr();
         }
 
         void Assign()
         {
-            //this.GetNextToken(Token.Identifer);
-            //if (this.currentToken != Token.Assign)
-            //{
-            //    this.Match(Token.Identifer);
-            //    this.GetNextToken();
-            //    this.Match(Token.Assign);
-            //}
-            string id = this.lex.Identifer;
+            string name = this.lex.Identifer;
+            this.GetNextToken(Token.Assign);
             this.GetNextToken();
-            this.Vars[id] = this.Expr();
-            Debug.WriteLine($"{this.lex.CurrentLocation.Line + 1}: Assing {id}={this.Vars[id].ToString()}");
+            this.Vars[name] = this.Expr();
+            Debug.WriteLine($"{this.lex.CurrentLocation.Line + 1}: Assing {name}={this.Vars[name].ToString()}");
         }
 
         void Invoke()
         {
-            //this.GetNextToken();
             string name = this.lex.Identifer;
+            this.GetNextToken(Token.LParen);
             List<Value> args = new List<Value>();
             while (true)
             {
@@ -342,7 +336,7 @@ namespace Suconbu.Scripting.Memezo
             };
 
             Value lhs = this.Primary();
-
+            this.GetNextToken();
             while (true)
             {
                 if (this.currentToken < Token.Plus || this.currentToken > Token.And) break;
@@ -367,7 +361,6 @@ namespace Suconbu.Scripting.Memezo
             if (this.currentToken == Token.Value)
             {
                 prim = this.lex.Value;
-                this.GetNextToken();
             }
             else if (this.currentToken == Token.Identifer)
             {
@@ -398,14 +391,12 @@ namespace Suconbu.Scripting.Memezo
                 {
                     this.RiseError($"UndeclaredIdentifier: {this.lex.Identifer}");
                 }
-                this.GetNextToken();
             }
             else if (this.currentToken == Token.LParen)
             {
                 this.GetNextToken();
                 prim = this.Expr();
                 this.VerifyLastToken(Token.RParen);
-                this.GetNextToken();
             }
             else if (this.currentToken == Token.Plus || this.currentToken == Token.Minus)
             {
@@ -598,39 +589,41 @@ namespace Suconbu.Scripting.Memezo
         readonly string source;
         Location currentLocation;
         char currentChar;
+        char nextChar;
 
         public Lexer(string input)
         {
             this.source = input;
-            this.currentLocation = new Location();
-            this.currentChar = (this.source.Length > 0) ? this.source[0] : (char)0;
+            this.Move(new Location());
         }
 
         public void Move(Location location)
         {
             this.currentLocation = location;
-            this.currentChar = this.source[location.CharIndex];
+            this.currentChar = this.GetCharAt(this.currentLocation.CharIndex);
+            this.nextChar = this.GetCharAt(this.currentLocation.CharIndex + 1);
         }
 
-        public Token GetToken()
+        public Token ReadToken()
         {
             while (this.currentChar == ' ' || this.currentChar == '\t' || this.currentChar == '\r')
-                this.GetChar();
+                this.ReadChar();
 
             this.TokenLocation = this.currentLocation;
 
-            if (this.currentChar == '/' && this.GetChar() == '/')
+            if (this.currentChar == '/' && this.nextChar == '/')
             {
                 // Line comment
-                while (this.currentChar != '\n') this.GetChar();
-                this.GetChar();
+                this.ReadChar();
+                while (this.currentChar != '\n') this.ReadChar();
+                this.ReadChar();
                 return Token.NewLine;
             }
 
             if (char.IsLetter(this.currentChar))
             {
                 this.Identifer = this.currentChar.ToString();
-                while (this.IsLetterOrDigitOrUnderscore(this.GetChar())) this.Identifer += this.currentChar;
+                while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
                 //Debug.WriteLine($"GetToken Identifier:{this.Identifer}");
                 switch (this.Identifer.ToUpper())
                 {
@@ -651,10 +644,8 @@ namespace Suconbu.Scripting.Memezo
             if (char.IsDigit(this.currentChar))
             {
                 string num = "";
-                do { num += this.currentChar; } while (char.IsDigit(this.GetChar()) || this.currentChar == '.');
-
-                double real;
-                if (!double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out real))
+                do { num += this.currentChar; } while (char.IsDigit(this.ReadChar()) || this.currentChar == '.');
+                if (!double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var real))
                     throw new Exception("ERROR while parsing number");
                 this.Value = new Value(real);
                 return Token.Value;
@@ -668,12 +659,12 @@ namespace Suconbu.Scripting.Memezo
                 case ';': token = Token.Semicolon; break;
                 case ',': token = Token.Comma; break;
                 case '=':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '=') token = Token.Equal;
                     else return Token.Assign;
                     break;
                 case '!':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '=') token = Token.NotEqual;
                     else return Token.Unkown;
                     break;
@@ -685,27 +676,27 @@ namespace Suconbu.Scripting.Memezo
                 case '(': token = Token.LParen; break;
                 case ')': token = Token.RParen; break;
                 case '\'':
-                    while (this.currentChar != '\n') this.GetChar();
-                    this.GetChar();
-                    return this.GetToken();
+                    while (this.currentChar != '\n') this.ReadChar();
+                    this.ReadChar();
+                    return this.ReadToken();
                 case '<':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '=') token = Token.LessEqual;
                     else return Token.Less;
                     break;
                 case '>':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '=') token = Token.MoreEqual;
                     else return Token.More;
                     break;
                 case '"':
                     string str = "";
-                    while (this.GetChar() != '"')
+                    while (this.ReadChar() != '"')
                     {
                         if (this.currentChar == 0) return Token.EOF;
                         if (this.currentChar == '\\')
                         {
-                            switch (char.ToLower(this.GetChar()))
+                            switch (char.ToLower(this.ReadChar()))
                             {
                                 case 'n': str += '\n'; break;
                                 case 't': str += '\t'; break;
@@ -722,12 +713,12 @@ namespace Suconbu.Scripting.Memezo
                     token = Token.Value;
                     break;
                 case '&':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '&') token = Token.And;
                     else return Token.Unkown;
                     break;
                 case '|':
-                    this.GetChar();
+                    this.ReadChar();
                     if (this.currentChar == '|') token = Token.Or;
                     else return Token.Unkown;
                     break;
@@ -735,7 +726,7 @@ namespace Suconbu.Scripting.Memezo
                     return Token.EOF;
             }
 
-            this.GetChar();
+            this.ReadChar();
             return token;
         }
 
@@ -744,16 +735,19 @@ namespace Suconbu.Scripting.Memezo
             var location = this.currentLocation;
             var identifier = this.Identifer;
             var value = this.Value;
-            var token = this.GetToken();
+            var token = this.ReadToken();
             this.Move(location);
             this.Identifer = identifier;
             this.Value = value;
             return token;
         }
 
-        char GetChar()
+        char ReadChar()
         {
             this.currentLocation.CharIndex++;
+            this.currentChar = this.GetCharAt(this.currentLocation.CharIndex);
+            this.nextChar = this.GetCharAt(this.currentLocation.CharIndex + 1);
+
             if (this.currentChar == '\n')
             {
                 this.currentLocation.Column = 0;
@@ -764,10 +758,12 @@ namespace Suconbu.Scripting.Memezo
                 this.currentLocation.Column++;
             }
 
-            this.currentChar = (this.currentLocation.CharIndex < this.source.Length) ?
-                this.source[this.currentLocation.CharIndex] : (char)0;
-
             return this.currentChar;
+        }
+
+        char GetCharAt(int index)
+        {
+            return (0 <= index && index < this.source.Length) ? this.source[index] : (char)0;
         }
 
         bool IsLetterOrDigitOrUnderscore(char c)
