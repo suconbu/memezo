@@ -4,6 +4,8 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
+using System.Text;
 
 namespace Suconbu.Scripting.Memezo
 {
@@ -575,8 +577,8 @@ namespace Suconbu.Scripting.Memezo
         public void Move(Location location)
         {
             this.currentLocation = location;
-            this.currentChar = this.GetCharAt(this.currentLocation.CharIndex);
-            this.nextChar = this.GetCharAt(this.currentLocation.CharIndex + 1);
+            this.currentChar = this.GetCharAt(location.CharIndex);
+            this.nextChar = this.GetCharAt(location.CharIndex + 1);
         }
 
         public Token ReadToken()
@@ -586,121 +588,12 @@ namespace Suconbu.Scripting.Memezo
 
             this.TokenLocation = this.currentLocation;
 
-            if (this.currentChar == '/' && this.nextChar == '/')
-            {
-                // Line comment
-                this.ReadChar();
-                while (this.currentChar != '\n' && this.currentChar != (char)0) this.ReadChar();
-                this.ReadChar();
-                return (this.currentChar == '\n') ? Token.NewLine : Token.EOF;
-            }
-
-            if (char.IsLetter(this.currentChar))
-            {
-                this.Identifer = this.currentChar.ToString();
-                while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
-                //Debug.WriteLine($"GetToken Identifier:{this.Identifer}");
-                switch (this.Identifer.ToUpper())
-                {
-                    case "IF": return Token.If;
-                    case "ELIF": return Token.Elif;
-                    case "ELSE": return Token.Else;
-                    case "ENDIF": return Token.EndIf;
-                    case "FOR": return Token.For;
-                    case "TO": return Token.To;
-                    case "ENDFOR": return Token.EndFor;
-                    case "END": return Token.End;
-                    default:
-                        return Token.Identifer;
-                }
-            }
-
-            if (char.IsDigit(this.currentChar))
-            {
-                string num = "";
-                do { num += this.currentChar; } while (char.IsDigit(this.ReadChar()) || this.currentChar == '.');
-                if (!double.TryParse(num, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var real))
-                    throw new Exception("ERROR while parsing number");
-                this.Value = new Value(real);
-                return Token.Value;
-            }
-
-            Token token = Token.Unkown;
-            switch (this.currentChar)
-            {
-                case '\n': token = Token.NewLine; break;
-                case ':': token = Token.Colon; break;
-                case ';': token = Token.Semicolon; break;
-                case ',': token = Token.Comma; break;
-                case '=':
-                    this.ReadChar();
-                    if (this.currentChar == '=') token = Token.Equal;
-                    else return Token.Assign;
-                    break;
-                case '!':
-                    this.ReadChar();
-                    if (this.currentChar == '=') token = Token.NotEqual;
-                    else return Token.Unkown;
-                    break;
-                case '+': token = Token.Plus; break;
-                case '-': token = Token.Minus; break;
-                case '/': token = Token.Slash; break;
-                case '*': token = Token.Asterisk; break;
-                case '^': token = Token.Caret; break;
-                case '(': token = Token.LParen; break;
-                case ')': token = Token.RParen; break;
-                case '\'':
-                    while (this.currentChar != '\n') this.ReadChar();
-                    this.ReadChar();
-                    return this.ReadToken();
-                case '<':
-                    this.ReadChar();
-                    if (this.currentChar == '=') token = Token.LessEqual;
-                    else return Token.Less;
-                    break;
-                case '>':
-                    this.ReadChar();
-                    if (this.currentChar == '=') token = Token.MoreEqual;
-                    else return Token.More;
-                    break;
-                case '"':
-                    string str = "";
-                    while (this.ReadChar() != '"')
-                    {
-                        if (this.currentChar == 0) return Token.EOF;
-                        if (this.currentChar == '\\')
-                        {
-                            switch (char.ToLower(this.ReadChar()))
-                            {
-                                case 'n': str += '\n'; break;
-                                case 't': str += '\t'; break;
-                                case '\\': str += '\\'; break;
-                                case '"': str += '"'; break;
-                            }
-                        }
-                        else
-                        {
-                            str += this.currentChar;
-                        }
-                    }
-                    this.Value = new Value(str);
-                    token = Token.Value;
-                    break;
-                case '&':
-                    this.ReadChar();
-                    if (this.currentChar == '&') token = Token.And;
-                    else return Token.Unkown;
-                    break;
-                case '|':
-                    this.ReadChar();
-                    if (this.currentChar == '|') token = Token.Or;
-                    else return Token.Unkown;
-                    break;
-                case (char)0:
-                    return Token.EOF;
-            }
-
-            this.ReadChar();
+            var token = Token.Unkown;
+            if (this.currentChar == (char)0) token = Token.EOF;
+            else if (this.currentChar == '/' && this.nextChar == '/') token = this.ReadComment();
+            else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadKeyword();
+            else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
+            else token = this.ReadOperator();
             return token;
         }
 
@@ -716,12 +609,123 @@ namespace Suconbu.Scripting.Memezo
             return token;
         }
 
+        Token ReadComment()
+        {
+            this.ReadChar();
+            while (this.currentChar != '\n' && this.currentChar != (char)0) this.ReadChar();
+            var token = (this.currentChar == '\n') ? Token.NewLine : Token.EOF;
+            this.ReadChar();
+            return token;
+        }
+
+        Token ReadKeyword()
+        {
+            this.Identifer = this.currentChar.ToString();
+            while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
+            //Debug.WriteLine($"GetToken Identifier:{this.Identifer}");
+            var token = Token.Identifer;
+            switch (this.Identifer.ToLower())
+            {
+                case "if": token = Token.If; break;
+                case "elif": token = Token.Elif; break;
+                case "else": token = Token.Else; break;
+                case "endif": token = Token.EndIf; break;
+                case "for": token = Token.For; break;
+                case "to": token = Token.To; break;
+                case "endfor": token = Token.EndFor; break;
+                case "end": token = Token.End; break;
+            }
+            return token;
+        }
+
+        Token ReadNumber()
+        {
+            var s = new StringBuilder();
+            while (char.IsDigit(this.currentChar) || this.currentChar == '.')
+            {
+                s.Append(this.currentChar);
+                this.ReadChar();
+            } 
+            if (!double.TryParse(s.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+                throw new Exception($"InvalidNumber: {s}");
+            this.Value = new Value(number);
+            return Token.Value;
+        }
+
+        Token ReadOperator()
+        {
+            var token = Token.Unkown;
+            if (this.currentChar == '\n') token = Token.NewLine;
+            else if (this.currentChar == ':') token = Token.Colon;
+            else if (this.currentChar == ';') token = Token.Semicolon;
+            else if (this.currentChar == ',') token = Token.Comma;
+            else if (this.currentChar == '=' && this.nextChar == '=') { token = Token.Equal; this.ReadChar(); }
+            else if (this.currentChar == '=') token = Token.Assign;
+            else if (this.currentChar == '!' && this.nextChar == '=') { token = Token.NotEqual; this.ReadChar(); }
+            else if (this.currentChar == '+') token = Token.Plus;
+            else if (this.currentChar == '-') token = Token.Minus;
+            else if (this.currentChar == '/') token = Token.Slash;
+            else if (this.currentChar == '*') token = Token.Asterisk;
+            else if (this.currentChar == '^') token = Token.Caret;
+            else if (this.currentChar == '(') token = Token.LParen;
+            else if (this.currentChar == ')') token = Token.RParen;
+            else if (this.currentChar == '\'')
+            {
+                while (this.currentChar != '\n') this.ReadChar();
+                this.ReadChar();
+                token = this.ReadToken();
+            }
+            else if (this.currentChar == '<' && this.nextChar == '=') { token = Token.LessEqual; this.ReadChar(); }
+            else if (this.currentChar == '<') token = Token.Less;
+            else if (this.currentChar == '>' && this.nextChar == '=') { token = Token.MoreEqual; this.ReadChar(); }
+            else if (this.currentChar == '>') token = Token.More;
+            else if (this.currentChar == '"')
+            {
+                this.Value = this.ReadString();
+                token = Token.Value;
+            }
+            else if (this.currentChar == '&' && this.nextChar == '&') { token = Token.And; this.ReadChar(); }
+            else if (this.currentChar == '|' && this.nextChar == '|') { token = Token.Or; this.ReadChar(); }
+            else token = Token.Unkown;
+            this.ReadChar();
+            return token;
+        }
+
+        Value ReadString()
+        {
+            var s = new StringBuilder();
+            while (this.ReadChar() != '"')
+            {
+                if (this.currentChar == (char)0) throw new Exception($"InvalidString: {s}");
+                if (this.currentChar == '\\')
+                {
+                    // Escape sequence
+                    var c = char.ToLower(this.ReadChar());
+                    if (c == 'n') s.Append('\n');
+                    else if (c == 'n') s.Append('\n');
+                    else if (c == 't') s.Append('\t');
+                    else if (c == '\\') s.Append('\\');
+                    else if (c == '"') s.Append('"');
+                }
+                else
+                {
+                    s.Append(this.currentChar);
+                }
+            }
+            return new Value(s.ToString());
+        }
+
+
         char ReadChar()
         {
-            this.currentLocation.CharIndex++;
-            this.currentChar = this.GetCharAt(this.currentLocation.CharIndex);
+            this.AdvanceLocation();
+            this.currentChar = this.nextChar;
             this.nextChar = this.GetCharAt(this.currentLocation.CharIndex + 1);
+            return this.currentChar;
+        }
 
+        void AdvanceLocation()
+        {
             if (this.currentChar == '\n')
             {
                 this.currentLocation.Column = 0;
@@ -731,13 +735,17 @@ namespace Suconbu.Scripting.Memezo
             {
                 this.currentLocation.Column++;
             }
-
-            return this.currentChar;
+            this.currentLocation.CharIndex++;
         }
 
         char GetCharAt(int index)
         {
             return (0 <= index && index < this.source.Length) ? this.source[index] : (char)0;
+        }
+
+        bool IsLetterOrUnderscore(char c)
+        {
+            return char.IsLetter(c) || c == '_';
         }
 
         bool IsLetterOrDigitOrUnderscore(char c)
