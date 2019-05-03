@@ -1,13 +1,13 @@
-// NOK:TooManyEndFor
-if 1
-	a = 1
-	for i=0 to 3
-		if 1
+// NOK:UnexpectedEndFor
+if 1:
+	a = 1:
+	for i=0 to 3:
+		if 1:
 			b = 1
-		elif 1
+		elif 1:
 			b = 2
-		else
-			for j=0 to 3
+		else:
+			for j=0 to 3:
 				c = j
 			endfor
 			b = 3

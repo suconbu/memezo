@@ -14,14 +14,23 @@ namespace Suconbu.Scripting
         static void Main(string[] args)
         {
             var interpreter = new Memezo.Interpreter();
+            var output = new StringBuilder();
+            interpreter.AddAction("print", (a) => Console.Write(a.Count > 0 ? a.First().ToString() : null));
+            interpreter.AddAction("printline", (a) => Console.WriteLine(a.Count > 0 ? a.First().ToString() : null));
             while (true)
             {
                 Console.Write("> ");
                 var line = Console.ReadLine();
                 if (line == "exit") return;
-                else if (line == "@test")
+                else if (line.StartsWith("@test"))
                 {
-                    RunTest(@"..\..");
+                    var pattern = "test*.txt";
+                    var match = Regex.Match(line, "@test (.+)");
+                    if(match.Success)
+                    {
+                        pattern = match.Groups[1].Value;
+                    }
+                    RunTest(@"..\..", pattern);
                 }
                 else if (line == "@vars")
                 {
@@ -33,9 +42,6 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    var output = new StringBuilder();
-                    interpreter.AddAction("print", (a) => Console.Write(a.Count > 0 ? a.First().ToString() : null));
-                    interpreter.AddAction("printline", (a) => Console.WriteLine(a.Count > 0 ? a.First().ToString() : null));
                     if (interpreter.Run(line))
                     {
                         if (interpreter.LastResultValue.HasValue) Console.WriteLine(interpreter.LastResultValue);
@@ -48,13 +54,12 @@ namespace Suconbu.Scripting
             }
         }
 
-        static void RunTest(string directoryPath)
+        static void RunTest(string directoryPath, string pattern)
         {
             var swAll = Stopwatch.StartNew();
             int totalCount = 0;
             int okCount = 0;
-            //foreach (string file in Directory.GetFiles(args[0], "test_ok_goto1.txt"))
-            foreach (string file in Directory.GetFiles(directoryPath, "test*.txt"))
+            foreach (string file in Directory.GetFiles(directoryPath, pattern))
             {
                 var firstLine = File.ReadLines(file).FirstOrDefault();
                 bool expectResult = true;
@@ -81,7 +86,7 @@ namespace Suconbu.Scripting
 
                 if (expectResult && !result)
                     // 期待通り成功せず
-                    Console.Write($"NOK: Unexpected {interpreter.Error}.");
+                    Console.Write($"NOK: {interpreter.Error}.");
                 else if (expectResult && result && expectOutput != null && output.ToString() != expectOutput)
                     // 期待通り成功したけど出力が違う
                     Console.Write($"NOK: Expected '{expectOutput}', but output was '{output}'.");

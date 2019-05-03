@@ -1,0 +1,31 @@
+// a,b,c,123,h,b,e,h,b,e,f,b,e,h,b,d,g,i,
+
+// comment
+10
+count = 1
+max(20,30)#comment
+count = min(5 , 100)//comment
+print("a,")
+
+for i = 1 to count:
+	print("b,")
+	if i == 1:
+		print("c,")
+		for j = 1 to 3: print(j) endfor // one liner
+	elif count == 5:
+		print("d,")
+	else:
+		print("e,")
+	endif
+
+	if 2 < i && i < 4:
+		print("f,")
+	else:
+		if i >= 5:
+			print("g,")
+		else:
+			print("h,")
+		endif
+	endif
+endfor
+print("i,")
