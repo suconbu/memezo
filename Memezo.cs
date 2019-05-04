@@ -84,6 +84,7 @@ namespace Suconbu.Scripting.Memezo
             //Debug.WriteLine($"Statement keyword:{keyword}");
             switch (keyword)
             {
+                case Token.Print: this.Print(); break;
                 case Token.If: this.If(); break;
                 case Token.Elif: this.ElifOrElse(); break;
                 case Token.Else: this.ElifOrElse(); break;
@@ -92,7 +93,6 @@ namespace Suconbu.Scripting.Memezo
                 case Token.EndFor: this.EndFor(); break;
                 case Token.Exit: this.Exit(); break;
                 case Token.Identifer: this.Identifier(); break;
-                case Token.Assign: this.ShowValue(); break;
                 case Token.NewLine: break;
                 case Token.EOF: this.Eof(); break;
                 default: this.RiseError($"UnexpectedToken: {keyword}"); break;
@@ -196,7 +196,7 @@ namespace Suconbu.Scripting.Memezo
             else this.RiseError($"UnexpectedIdentifier: {this.lex.Identifer}");//this.Expr();
         }
 
-        void ShowValue()
+        void Print()
         {
             this.ReadToken();
             this.LastResultValue = this.Expr();
@@ -615,6 +615,7 @@ namespace Suconbu.Scripting.Memezo
             var token = Token.Identifer;
             switch (this.Identifer.ToLower())
             {
+                case "p": token = Token.Print; break;
                 case "if": token = Token.If; break;
                 case "elif": token = Token.Elif; break;
                 case "else": token = Token.Else; break;
