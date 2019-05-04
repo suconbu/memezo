@@ -90,7 +90,7 @@ namespace Suconbu.Scripting.Memezo
                 case Token.EndIf: this.EndIf(); break;
                 case Token.For: this.For(); break;
                 case Token.EndFor: this.EndFor(); break;
-                case Token.End: this.End(); break;
+                case Token.Exit: this.Exit(); break;
                 case Token.Identifer: this.Identifier(); break;
                 case Token.Assign: this.ShowValue(); break;
                 case Token.NewLine: break;
@@ -183,7 +183,7 @@ namespace Suconbu.Scripting.Memezo
             if (--this.ifCount < 0) this.RiseError("UnexpectedEndIf");
         }
 
-        void End()
+        void Exit()
         {
             this.exit = true;
         }
@@ -622,7 +622,7 @@ namespace Suconbu.Scripting.Memezo
                 case "for": token = Token.For; break;
                 case "to": token = Token.To; break;
                 case "endfor": token = Token.EndFor; break;
-                case "end": token = Token.End; break;
+                case "exit": token = Token.Exit; break;
                 case "and": token = Token.And; break;
                 case "or": token = Token.Or; break;
             }
@@ -782,7 +782,7 @@ namespace Suconbu.Scripting.Memezo
         For,
         To,
         EndFor,
-        End,
+        Exit,
 
         NewLine,
         Colon,
