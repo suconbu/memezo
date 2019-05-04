@@ -64,7 +64,7 @@ namespace Suconbu.Scripting
                 var firstLine = File.ReadLines(file).FirstOrDefault();
                 bool expectResult = true;
                 string expectOutput = null;
-                var match = Regex.Match(firstLine, @"^// (\w+):(.+)");
+                var match = Regex.Match(firstLine, @"^# (\w+):(.+)");
                 if (match.Success)
                 {
                     expectResult = match.Groups[1].Value == "OK";

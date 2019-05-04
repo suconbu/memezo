@@ -1,4 +1,4 @@
-// OK:0123456
+# OK:0123456
 for i = 0 to 5:
 	print(i)
 endfor

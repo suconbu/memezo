@@ -1,4 +1,4 @@
-// NOK:MissingEndFor
+# NOK:MissingEndFor
 for i = 0 to 5:
 	print(i)
 	for j = 0 to 3:

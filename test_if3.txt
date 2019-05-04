@@ -1,2 +1,2 @@
-// OK:bab
+# OK:bab
 for i = 0 to 2: if i == 1: print("a") else: print("b") endif endfor

@@ -1,4 +1,4 @@
-// NOK:UnexpectedEndFor
+# NOK:UnexpectedEndFor
 if 1:
 	a = 1
 	for i=0 to 3:

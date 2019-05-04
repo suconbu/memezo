@@ -1,2 +1,2 @@
-// NOK:UndeclaredIdentifier: a
+# NOK:UndeclaredIdentifier: a
 abs(a)

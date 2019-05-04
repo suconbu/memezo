@@ -599,7 +599,7 @@ namespace Suconbu.Scripting.Memezo
 
             var token = Token.Unkown;
             if (this.currentChar == (char)0) token = Token.EOF;
-            else if (this.currentChar == '/' && this.nextChar == '/') token = this.ReadComment();
+            else if (this.currentChar == '#') token = this.ReadComment();
             else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadKeyword();
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
             else token = this.ReadOperator();

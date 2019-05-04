@@ -1,2 +1,2 @@
-// NOK:UnexpectedToken: Multiply
+# NOK:UnexpectedToken: Multiply
 *
