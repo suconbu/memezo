@@ -25,10 +25,10 @@ namespace Suconbu.Scripting.Memezo
         Lexer lex;
         Token currentToken;
         Location statementLocation;
-        //Location currentTokenLocation;
         bool exit;
 
         readonly Stack<Loop> loops = new Stack<Loop>();
+        int ifCount;
 
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
         readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
@@ -68,6 +68,8 @@ namespace Suconbu.Scripting.Memezo
         void Initialize()
         {
             this.exit = false;
+            this.loops.Clear();
+            this.ifCount = 0;
             this.TotalStatementCount = 0;
             this.TotalTokenCount = 0;
             this.LastResultValue = null;
@@ -83,16 +85,16 @@ namespace Suconbu.Scripting.Memezo
             switch (keyword)
             {
                 case Token.If: this.If(); break;
-                case Token.Elif: this.Else(); break;
-                case Token.Else: this.Else(); break;
-                case Token.EndIf: break;
+                case Token.Elif: this.ElifOrElse(); break;
+                case Token.Else: this.ElifOrElse(); break;
+                case Token.EndIf: this.EndIf(); break;
                 case Token.For: this.For(); break;
                 case Token.EndFor: this.EndFor(); break;
                 case Token.End: this.End(); break;
                 case Token.Identifer: this.Identifier(); break;
                 case Token.Assign: this.ShowValue(); break;
                 case Token.NewLine: break;
-                case Token.EOF: this.exit = true; break;
+                case Token.EOF: this.Eof(); break;
                 default: this.RiseError($"UnexpectedToken: {keyword}"); break;
             }
         }
@@ -130,46 +132,55 @@ namespace Suconbu.Scripting.Memezo
             if (!result)
             {
                 // Condition is not satisfied.
-                int depth = 0;
+                int count = this.ifCount;
                 while (this.ReadToken() != Token.EOF)
                 {
                     if (this.currentToken == Token.If)
                     {
-                        depth++;
+                        count++;
                     }
                     else if (this.currentToken == Token.Elif)
                     {
-                        if (depth == 0) { this.If(); break; }
+                        if (count == this.ifCount) { this.If(); break; }
                     }
                     else if (this.currentToken == Token.Else)
                     {
-                        if (depth == 0) { this.ReadToken(Token.Colon); break; }
+                        if (count == this.ifCount) { this.ReadToken(Token.Colon); this.ifCount++; break; }
                     }
                     else if (this.currentToken == Token.EndIf)
                     {
-                        if (depth == 0) break;
-                        depth--;
+                        if (count-- == this.ifCount) break;
                     }
                 }
             }
+            else
+            {
+                this.ifCount++;
+            }
         }
 
-        void Else()
+        void ElifOrElse()
         {
             // After if clause executed.
-            int depth = 0;
+            if (this.ifCount <= 0) this.RiseError("UnexpectedToken: Else/Elif");
+            int count = this.ifCount;
             while (this.ReadToken() != Token.EOF)
             {
                 if (this.currentToken == Token.If)
                 {
-                    depth++;
+                    count++;
                 }
                 else if (this.currentToken == Token.EndIf)
                 {
-                    if (depth == 0) break;
-                    depth--;
+                    if (count-- == this.ifCount) break;
                 }
             }
+            this.ifCount--;
+        }
+
+        void EndIf()
+        {
+            if (--this.ifCount < 0) this.RiseError("UnexpectedEndIf");
         }
 
         void End()
@@ -189,6 +200,13 @@ namespace Suconbu.Scripting.Memezo
         {
             this.ReadToken();
             this.LastResultValue = this.Expr();
+        }
+
+        void Eof()
+        {
+            if (this.loops.Count > 0) this.RiseError("MissingEndFor");
+            if (this.ifCount > 0) this.RiseError("MissingEndIf");
+            this.exit = true;
         }
 
         void Assign()

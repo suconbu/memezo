@@ -1,0 +1,7 @@
+// NOK:UnexpectedEndIf
+if 1:
+	if 0:
+	else:
+	endif
+endif
+endif
