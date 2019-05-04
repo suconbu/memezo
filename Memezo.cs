@@ -32,11 +32,11 @@ namespace Suconbu.Scripting.Memezo
 
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
         readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
-        readonly Dictionary<Token, int> precs = new Dictionary<Token, int>()
+        readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
         {
-            { Token.Caret, 0 },
-            { Token.Plus, 1 }, { Token.Minus, 1 },
-            { Token.Asterisk, 2 }, {Token.Slash, 2 },
+            { Token.Exponent, 0 },
+            { Token.Multiply, 1 }, {Token.Division, 1 }, {Token.FloorDivision, 1 }, {Token.Remainder, 1 },
+            { Token.Plus, 2 }, { Token.Minus, 2 },
             { Token.Equal, 3 }, { Token.NotEqual, 3 }, { Token.Less, 3 }, { Token.More, 3 }, { Token.LessEqual, 3 },  { Token.MoreEqual, 3 },
             { Token.Not, 4 },
             { Token.And, 5 },
@@ -241,13 +241,14 @@ namespace Suconbu.Scripting.Memezo
         {
             // Current:Token.LParen
             var name = this.lexer.Identifer;
-            List<Value> args = new List<Value>();
+            var args = new List<Value>();
             while (true)
             {
                 if (this.lexer.ReadToken() != Token.RightParen)
                 {
                     args.Add(this.Expr());
                     if (this.lexer.CurrentToken == Token.Comma) continue;
+                    if (this.lexer.CurrentToken != Token.RightParen) this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
                 }
                 break;
             }
@@ -315,8 +316,8 @@ namespace Suconbu.Scripting.Memezo
             while (true)
             {
                 if (!this.IsOperator(this.lexer.CurrentToken)) break;
-                if (!this.precs.TryGetValue(this.lexer.CurrentToken, out var prec)) prec = int.MaxValue;
-                if (prec > lowestPrec) break;
+                if (!this.operatorProcs.TryGetValue(this.lexer.CurrentToken, out var prec)) prec = int.MaxValue;
+                if (prec >= lowestPrec) break;
 
                 var op = this.lexer.CurrentToken;
                 this.lexer.ReadToken();
@@ -390,7 +391,7 @@ namespace Suconbu.Scripting.Memezo
 
         bool IsOperator(Token token)
         {
-            return Token.Plus <= token && token <= Token.And;
+            return Token.OperatorBegin <= token && token <= Token.OperatorEnd;
         }
     }
 
@@ -493,9 +494,11 @@ namespace Suconbu.Scripting.Memezo
                 switch (token)
                 {
                     case Token.Minus: return new Value(a.Number - b.Number);
-                    case Token.Asterisk: return new Value(a.Number * b.Number);
-                    case Token.Slash: return new Value(a.Number / b.Number);
-                    case Token.Caret: return new Value(Math.Pow(a.Number, b.Number));
+                    case Token.Multiply: return new Value(a.Number * b.Number);
+                    case Token.Division: return new Value(a.Number / b.Number);
+                    case Token.FloorDivision: return new Value(Math.Floor(a.Number / b.Number));
+                    case Token.Remainder: return new Value(a.Number % b.Number);
+                    case Token.Exponent: return new Value(Math.Pow(a.Number, b.Number));
                     case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
                     case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
                     case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
@@ -662,12 +665,13 @@ namespace Suconbu.Scripting.Memezo
             else if (this.currentChar == '=' && this.nextChar == '=') { token = Token.Equal; this.ReadChar(); }
             else if (this.currentChar == '=') token = Token.Assign;
             else if (this.currentChar == '!' && this.nextChar == '=') { token = Token.NotEqual; this.ReadChar(); }
-            else if (this.currentChar == '!') token = Token.Not;
             else if (this.currentChar == '+') token = Token.Plus;
             else if (this.currentChar == '-') token = Token.Minus;
-            else if (this.currentChar == '/') token = Token.Slash;
-            else if (this.currentChar == '*') token = Token.Asterisk;
-            else if (this.currentChar == '^') token = Token.Caret;
+            else if (this.currentChar == '*' && this.nextChar == '*') { token = Token.Exponent; this.ReadChar(); }
+            else if (this.currentChar == '*') token = Token.Multiply;
+            else if (this.currentChar == '/' && this.nextChar == '/') { token = Token.FloorDivision; this.ReadChar(); }
+            else if (this.currentChar == '/') token = Token.Division;
+            else if (this.currentChar == '%') token = Token.Remainder;
             else if (this.currentChar == '(') token = Token.LeftParen;
             else if (this.currentChar == ')') token = Token.RightParen;
             else if (this.currentChar == '\'')
@@ -780,44 +784,27 @@ namespace Suconbu.Scripting.Memezo
     {
         Unkown,
 
-        Identifer,
-        Value,
+        Identifer, Value,
 
-        //Keywords
-        Print,
-        If,
-        Elif,
-        EndIf,
-        Else,
-        For,
-        To,
-        EndFor,
-        Exit,
+        // Keyword
+        Print, If, Elif, Else, EndIf, For, To, EndFor, Exit,
 
-        NewLine,
-        Colon,
-        Semicolon,
-        Comma,
+        // Symbol
+        NewLine, Colon, Semicolon, Comma, Assign, LeftParen, RightParen,
 
-        Plus,
-        Minus,
-        Slash,
-        Asterisk,
-        Caret,
-        Assign,
-        Equal,
-        Less,
-        More,
-        NotEqual,
-        LessEqual,
-        MoreEqual,
-        Or,
-        And,
-        Not,
+        OperatorBegin,
 
-        LeftParen,
-        RightParen,
+        // Arithmetic operator
+        Plus, Minus, Multiply, Division, FloorDivision, Remainder, Exponent,
 
-        EOF = -1   //End Of File
+        // Comparison operator
+        Equal, Less, More, NotEqual, LessEqual, MoreEqual,
+
+        // Logical operator
+        Or, And, Not,
+
+        OperatorEnd,
+
+        EOF = -1
     }
 }
