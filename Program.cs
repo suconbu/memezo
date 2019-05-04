@@ -44,7 +44,7 @@ namespace Suconbu.Scripting
                 {
                     if (interpreter.Run(line))
                     {
-                        if (interpreter.LastResultValue.HasValue) Console.WriteLine(interpreter.LastResultValue);
+                        if (interpreter.PrintValue.HasValue) Console.WriteLine(interpreter.PrintValue);
                     }
                     else
                     {
