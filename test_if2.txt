@@ -10,25 +10,25 @@ for i=0 to 10:
 						print(2)
 					else:
 						print(3)
-					endif
+					end
 				elif i==7:
 					print(4)
 				else:
 					print(5)
-				endif
+				end
 			elif i==8:
 				print(6)
 			else:
 				print(7)
-			endif
+			end
 		elif i==9:
 			print(8)
 		else:
 			print(9)
-		endif
+		end
 	elif i==10:
 		print("a")
 	else:
 		print("b")
-	endif
-endfor
+	end
+end

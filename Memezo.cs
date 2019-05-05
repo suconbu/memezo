@@ -27,9 +27,7 @@ namespace Suconbu.Scripting.Memezo
         Location statementLocation;
         bool exit;
 
-        readonly Stack<Loop> loops = new Stack<Loop>();
-        int ifCount;
-
+        readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
         readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
         readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
@@ -80,8 +78,7 @@ namespace Suconbu.Scripting.Memezo
             this.exit = false;
             this.PrintValue = null;
             this.TotalStatementCount = 0;
-            this.loops.Clear();
-            this.ifCount = 0;
+            this.clauses.Clear();
         }
 
         void Statement()
@@ -97,11 +94,10 @@ namespace Suconbu.Scripting.Memezo
             {
                 case Token.Print: this.Print(); break;
                 case Token.If: this.If(); break;
-                case Token.Elif: this.ElifOrElse(); break;
-                case Token.Else: this.ElifOrElse(); break;
-                case Token.EndIf: this.EndIf(); break;
+                case Token.Elif: this.IfSkip(); break;
+                case Token.Else: this.IfSkip(); break;
                 case Token.For: this.For(); break;
-                case Token.EndFor: this.EndFor(); break;
+                case Token.End: this.End(); break;
                 case Token.Exit: this.Exit(); break;
                 case Token.Identifer: this.Identifier(); break;
                 case Token.EOF: this.Eof(); break;
@@ -136,70 +132,91 @@ namespace Suconbu.Scripting.Memezo
         void If()
         {
         Start:
-            this.lexer.ReadToken();
-            var result = (this.Expr().BinaryOperation(Value.Zero, Token.Equal).Number == 0);
+            bool result = true;
+            if (this.lexer.CurrentToken == Token.If || this.lexer.CurrentToken == Token.Elif)
+            {
+                if (this.lexer.CurrentToken == Token.If)
+                    this.clauses.Push(new Clause(Token.If, this.statementLocation, null));
+                this.lexer.ReadToken();
+                result = (this.Expr().BinaryOperation(Value.Zero, Token.Equal).Number == 0);
+            }
+            else if (this.lexer.CurrentToken == Token.Else)
+            {
+                this.lexer.ReadToken();
+            }
+            else
+                this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
             this.VerifyToken(this.lexer.CurrentToken, Token.Colon);
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: If {result}");
+            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: {this.lexer.CurrentToken} {result}");
+
             if (!result)
             {
                 // Condition is not satisfied.
-                int count = this.ifCount;
+                int count = 0;
                 while (this.lexer.ReadToken() != Token.EOF)
                 {
-                    if (this.lexer.CurrentToken == Token.If)
+                    if (this.HasClause(this.lexer.CurrentToken))
                     {
                         count++;
                     }
-                    else if (this.lexer.CurrentToken == Token.Elif)
+                    else if (this.lexer.CurrentToken == Token.Elif || this.lexer.CurrentToken == Token.Else)
                     {
-                        if (count == this.ifCount) goto Start;
+                        if (count == 0) goto Start;
                     }
-                    else if (this.lexer.CurrentToken == Token.Else)
+                    else if (this.lexer.CurrentToken == Token.End)
                     {
-                        if (count == this.ifCount)
-                        {
-                            this.VerifyToken(this.lexer.ReadToken(), Token.Colon);
-                            this.ifCount++;
-                            break;
-                        }
-                    }
-                    else if (this.lexer.CurrentToken == Token.EndIf)
-                    {
-                        if (count-- == this.ifCount) break;
+                        if (count-- == 0) break;
                     }
                 }
             }
             else
             {
-                this.ifCount++;
+                this.lexer.ReadToken();
             }
-            this.lexer.ReadToken();
         }
 
-        void ElifOrElse()
+        void IfSkip()
         {
             // After if clause executed.
-            if (this.ifCount <= 0) this.RiseError("UnexpectedToken: Else/Elif");
-            int count = this.ifCount;
+            if (this.clauses.Count <= 0 || this.clauses.Peek().Token != Token.If)
+                this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
+            int count = 0;
             while (this.lexer.ReadToken() != Token.EOF)
             {
-                if (this.lexer.CurrentToken == Token.If)
+                if (this.HasClause(this.lexer.CurrentToken))
                 {
                     count++;
                 }
-                else if (this.lexer.CurrentToken == Token.EndIf)
+                else if (this.lexer.CurrentToken == Token.End)
                 {
-                    if (count-- == this.ifCount) break;
+                    if (count-- == 0) break;
                 }
             }
-            this.ifCount--;
+        }
+
+        void End()
+        {
+            if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {Token.End}");
+            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: End");
+            var clause = this.clauses.Peek();
+            if (clause.Token == Token.If)
+                this.EndIf(clause);
+            else if (clause.Token == Token.For)
+                this.EndFor(clause);
+            else
+                this.RiseError($"UnexpectedClauseToken: {clause.Token}");
             this.lexer.ReadToken();
         }
 
-        void EndIf()
+        void EndIf(Clause clause)
         {
-            if (--this.ifCount < 0) this.RiseError("UnexpectedEndIf");
-            this.lexer.ReadToken();
+            this.clauses.Pop();
+        }
+
+        void EndFor(Clause clause)
+        {
+            this.Vars[clause.Var] = this.Vars[clause.Var].BinaryOperation(new Value(1), Token.Plus);
+            this.lexer.Move(clause.Location);
         }
 
         void Exit()
@@ -223,8 +240,7 @@ namespace Suconbu.Scripting.Memezo
 
         void Eof()
         {
-            if (this.loops.Count > 0) this.RiseError("MissingEndFor");
-            if (this.ifCount > 0) this.RiseError("MissingEndIf");
+            if (this.clauses.Count > 0) this.RiseError($"MissingToken: {Token.End}");
             this.exit = true;
         }
 
@@ -259,10 +275,10 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
             Value fromValue = this.Expr();
 
-            if (this.loops.Count == 0 || this.loops.Peek().Var != name)
+            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
                 this.Vars[name] = fromValue;
-                this.loops.Push(new Loop(this.statementLocation, name));
+                this.clauses.Push(new Clause(Token.For, this.statementLocation, name));
             }
 
             this.VerifyToken(this.lexer.CurrentToken, Token.To);
@@ -280,22 +296,11 @@ namespace Suconbu.Scripting.Memezo
                 while (counter >= 0)
                 {
                     this.lexer.ReadToken();
-                    if (this.lexer.CurrentToken == Token.For) counter++;
-                    else if (this.lexer.CurrentToken == Token.EndFor) counter--;
+                    if (this.HasClause(this.lexer.CurrentToken)) counter++;
+                    else if (this.lexer.CurrentToken == Token.End) counter--;
                 }
-                this.loops.Pop();
+                this.clauses.Pop();
             }
-            this.lexer.ReadToken();
-        }
-
-        void EndFor()
-        {
-            if(this.loops.Count <= 0) this.RiseError($"UnexpectedEndFor");
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: EndFor");
-
-            var loop = this.loops.Peek();
-            this.Vars[loop.Var] = this.Vars[loop.Var].BinaryOperation(new Value(1), Token.Plus);
-            this.lexer.Move(loop.Location);
             this.lexer.ReadToken();
         }
 
@@ -382,6 +387,11 @@ namespace Suconbu.Scripting.Memezo
                 break;
             }
             return args;
+        }
+
+        bool HasClause(Token token)
+        {
+            return this.lexer.CurrentToken == Token.If || this.lexer.CurrentToken == Token.For;
         }
 
         bool IsOperator(Token token)
@@ -625,10 +635,9 @@ namespace Suconbu.Scripting.Memezo
                 case "if": token = Token.If; break;
                 case "elif": token = Token.Elif; break;
                 case "else": token = Token.Else; break;
-                case "endif": token = Token.EndIf; break;
+                case "end": token = Token.End; break;
                 case "for": token = Token.For; break;
                 case "to": token = Token.To; break;
-                case "endfor": token = Token.EndFor; break;
                 case "exit": token = Token.Exit; break;
                 case "and": token = Token.And; break;
                 case "or": token = Token.Or; break;
@@ -760,13 +769,15 @@ namespace Suconbu.Scripting.Memezo
         public int Column { get; set; }
     }
 
-    struct Loop
+    struct Clause
     {
+        public Token Token;
         public Location Location;
         public string Var;
 
-        public Loop(Location location, string var)
+        public Clause(Token token, Location location, string var)
         {
+            this.Token = token;
             this.Location = location;
             this.Var = var;
         }
@@ -779,7 +790,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Keyword
-        Print, If, Elif, Else, EndIf, For, To, EndFor, Exit,
+        Print, If, Elif, Else, For, To, End, Exit,
 
         // Symbol
         NewLine, Colon, Semicolon, Comma, Assign, LeftParen, RightParen,

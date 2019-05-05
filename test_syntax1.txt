@@ -12,13 +12,13 @@ for i = 1 to count:
 	print(i + "b,")
 	if i == 1:
 		print("c,")
-		for j = 1 to 3: print(j) endfor # one liner
+		for j = 1 to 3: print(j) end # one liner
 		print(",")
 	elif i == 5:
 		print("d,")
 	else:
 		print("e,")
-	endif
+	end
 
 	if 2 < i and i < 4:
 		print("f,")
@@ -27,9 +27,9 @@ for i = 1 to count:
 			print("g,")
 		else:
 			print("h,")
-		endif
-	endif
-endfor
+		end
+	end
+end
 print("i,")
 exit
 print("z,")

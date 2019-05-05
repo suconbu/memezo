@@ -1,8 +1,8 @@
-# NOK:UnexpectedEndFor
+# NOK:UnexpectedToken: End
 for i = 0 to 5:
 	print(i)
 	for j = 0 to 3:
 		print(j)
-	endfor
-endfor
-endfor
+	end
+end
+end

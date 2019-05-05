@@ -1,5 +1,5 @@
-# NOK:MissingEndIf
+# NOK:MissingToken: End
 if 1:
 	if 0:
 	else:
-endif
+end
