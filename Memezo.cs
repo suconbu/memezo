@@ -605,7 +605,7 @@ namespace Suconbu.Scripting.Memezo
             var token = Token.Unkown;
             if (this.currentChar == (char)0) token = Token.EOF;
             else if (this.currentChar == '#') token = this.ReadComment();
-            else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadKeyword();
+            else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadIdentifier();
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
             else if (this.IsStringEnclosure(this.currentChar)) token = this.ReadString(this.currentChar);
             else token = this.ReadOperator();
@@ -623,13 +623,13 @@ namespace Suconbu.Scripting.Memezo
             return token;
         }
 
-        Token ReadKeyword()
+        Token ReadIdentifier()
         {
             this.Identifer = this.currentChar.ToString();
             while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
             //Debug.WriteLine($"GetToken Identifier:{this.Identifer}");
             var token = Token.Identifer;
-            switch (this.Identifer.ToLower())
+            switch (this.Identifer)
             {
                 case "p": token = Token.Print; break;
                 case "if": token = Token.If; break;
@@ -665,7 +665,6 @@ namespace Suconbu.Scripting.Memezo
             var token = Token.Unkown;
             if (this.currentChar == '\n') token = Token.NewLine;
             else if (this.currentChar == ':') token = Token.Colon;
-            else if (this.currentChar == ';') token = Token.Semicolon;
             else if (this.currentChar == ',') token = Token.Comma;
             else if (this.currentChar == '=' && this.nextChar == '=') { token = Token.Equal; this.ReadChar(); }
             else if (this.currentChar == '=') token = Token.Assign;
@@ -699,7 +698,7 @@ namespace Suconbu.Scripting.Memezo
                     // Escape sequence
                     var c = char.ToLower(this.ReadChar());
                     if (c == 'n') s.Append('\n');
-                    else if (c == 'n') s.Append('\n');
+                    else if (c == 'r') s.Append('\r');
                     else if (c == 't') s.Append('\t');
                     else if (c == '\\') s.Append('\\');
                     else if (c == enclosure) s.Append(enclosure);
@@ -793,7 +792,7 @@ namespace Suconbu.Scripting.Memezo
         Print, If, Elif, Else, For, To, End, Exit,
 
         // Symbol
-        NewLine, Colon, Semicolon, Comma, Assign, LeftParen, RightParen,
+        NewLine, Colon, Comma, Assign, LeftParen, RightParen,
 
         OperatorBegin,
 
