@@ -85,9 +85,9 @@ namespace Suconbu.Scripting.Memezo
         {
             this.TotalStatementCount++;
 
-            while (this.lexer.CurrentToken == Token.Unkown || this.lexer.CurrentToken == Token.NewLine)
+            while (this.lexer.Token == Token.Unkown || this.lexer.Token == Token.NewLine)
                 this.lexer.ReadToken();
-            var keyword = this.lexer.CurrentToken;
+            var keyword = this.lexer.Token;
             this.statementLocation = this.lexer.TokenLocation;
             //Debug.WriteLine($"Statement keyword:{keyword}");
             switch (keyword)
@@ -105,49 +105,31 @@ namespace Suconbu.Scripting.Memezo
             }
         }
 
-        void RiseError(string message)
+        void Print()
         {
-            throw new Exception(message);
+            this.lexer.ReadToken();
+            this.PrintValue = this.Expr();
         }
-
-        void VerifyToken(Token token, Token expectedToken)
-        {
-            if (token != expectedToken) this.RiseError($"MissingToken: {expectedToken}");
-        }
-
-        //Token ReadToken(Token expectedToken)
-        //{
-        //    var token = this.ReadToken();
-        //    if (token != expectedToken) this.RiseError($"MissingToken: {expectedToken}");
-        //    return token;
-        //}
-
-        //Token ReadToken()
-        //{
-        //    this.TotalTokenCount++;
-        //    this.currentToken = this.lex.ReadToken();
-        //    return this.currentToken;
-        //}
 
         void If()
         {
         Start:
             bool result = true;
-            if (this.lexer.CurrentToken == Token.If || this.lexer.CurrentToken == Token.Elif)
+            if (this.lexer.Token == Token.If || this.lexer.Token == Token.Elif)
             {
-                if (this.lexer.CurrentToken == Token.If)
+                if (this.lexer.Token == Token.If)
                     this.clauses.Push(new Clause(Token.If, this.statementLocation, null));
                 this.lexer.ReadToken();
                 result = (this.Expr().BinaryOperation(Value.Zero, Token.Equal).Number == 0);
             }
-            else if (this.lexer.CurrentToken == Token.Else)
+            else if (this.lexer.Token == Token.Else)
             {
                 this.lexer.ReadToken();
             }
             else
-                this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
-            this.VerifyToken(this.lexer.CurrentToken, Token.Colon);
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: {this.lexer.CurrentToken} {result}");
+                this.RiseError($"UnexpectedToken: {this.lexer.Token}");
+            this.VerifyToken(this.lexer.Token, Token.Colon);
+            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: {this.lexer.Token} {result}");
 
             if (!result)
             {
@@ -155,15 +137,15 @@ namespace Suconbu.Scripting.Memezo
                 int count = 0;
                 while (this.lexer.ReadToken() != Token.EOF)
                 {
-                    if (this.HasClause(this.lexer.CurrentToken))
+                    if (this.HasClause(this.lexer.Token))
                     {
                         count++;
                     }
-                    else if (this.lexer.CurrentToken == Token.Elif || this.lexer.CurrentToken == Token.Else)
+                    else if (this.lexer.Token == Token.Elif || this.lexer.Token == Token.Else)
                     {
                         if (count == 0) goto Start;
                     }
-                    else if (this.lexer.CurrentToken == Token.End)
+                    else if (this.lexer.Token == Token.End)
                     {
                         if (count-- == 0) break;
                     }
@@ -179,25 +161,65 @@ namespace Suconbu.Scripting.Memezo
         {
             // After if clause executed.
             if (this.clauses.Count <= 0 || this.clauses.Peek().Token != Token.If)
-                this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
+                this.RiseError($"UnexpectedToken: {this.lexer.Token}");
             int count = 0;
             while (this.lexer.ReadToken() != Token.EOF)
             {
-                if (this.HasClause(this.lexer.CurrentToken))
+                if (this.HasClause(this.lexer.Token))
                 {
                     count++;
                 }
-                else if (this.lexer.CurrentToken == Token.End)
+                else if (this.lexer.Token == Token.End)
                 {
                     if (count-- == 0) break;
                 }
             }
         }
 
+
+        void For()
+        {
+            this.VerifyToken(this.lexer.ReadToken(), Token.Identifer);
+            var name = this.lexer.Identifer;
+
+            this.VerifyToken(this.lexer.ReadToken(), Token.Assign);
+
+            this.lexer.ReadToken();
+            Value fromValue = this.Expr();
+
+            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
+            {
+                this.Vars[name] = fromValue;
+                this.clauses.Push(new Clause(Token.For, this.statementLocation, name));
+            }
+
+            this.VerifyToken(this.lexer.Token, Token.To);
+
+            this.lexer.ReadToken();
+            var toValue = this.Expr();
+
+            this.VerifyToken(this.lexer.Token, Token.Colon);
+
+            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: For {this.Vars[name]} to {toValue}");
+
+            if (this.Vars[name].BinaryOperation(toValue, Token.More).Number == 1)
+            {
+                int counter = 0;
+                while (counter >= 0)
+                {
+                    this.lexer.ReadToken();
+                    if (this.HasClause(this.lexer.Token)) counter++;
+                    else if (this.lexer.Token == Token.End) counter--;
+                }
+                this.clauses.Pop();
+            }
+            this.lexer.ReadToken();
+        }
+
         void End()
         {
             if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {Token.End}");
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: End");
+            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: End");
             var clause = this.clauses.Peek();
             if (clause.Token == Token.If)
                 this.EndIf(clause);
@@ -232,12 +254,6 @@ namespace Suconbu.Scripting.Memezo
             else this.RiseError($"UnexpectedIdentifier: {this.lexer.Identifer}");//this.Expr();
         }
 
-        void Print()
-        {
-            this.lexer.ReadToken();
-            this.PrintValue = this.Expr();
-        }
-
         void Eof()
         {
             if (this.clauses.Count > 0) this.RiseError($"MissingToken: {Token.End}");
@@ -250,7 +266,7 @@ namespace Suconbu.Scripting.Memezo
             var name = this.lexer.Identifer;
             this.lexer.ReadToken();
             this.Vars[name] = this.Expr();
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: Assing {name}={this.Vars[name].ToString()}");
+            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: Assing {name}={this.Vars[name].ToString()}");
         }
 
         void Invoke()
@@ -262,46 +278,7 @@ namespace Suconbu.Scripting.Memezo
             if (this.functions.TryGetValue(name, out var function)) function(args);
             else if (this.actions.TryGetValue(name, out var action)) action(args);
             else this.RiseError($"UndeclaredIdentifier: {name}");
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
-        }
-
-        void For()
-        {
-            this.VerifyToken(this.lexer.ReadToken(), Token.Identifer);
-            var name = this.lexer.Identifer;
-
-            this.VerifyToken(this.lexer.ReadToken(), Token.Assign);
-
-            this.lexer.ReadToken();
-            Value fromValue = this.Expr();
-
-            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
-            {
-                this.Vars[name] = fromValue;
-                this.clauses.Push(new Clause(Token.For, this.statementLocation, name));
-            }
-
-            this.VerifyToken(this.lexer.CurrentToken, Token.To);
-
-            this.lexer.ReadToken();
-            var toValue = this.Expr();
-
-            this.VerifyToken(this.lexer.CurrentToken, Token.Colon);
-
-            Debug.WriteLine($"{this.lexer.CurrentLocation.Line + 1}: For {this.Vars[name]} to {toValue}");
-
-            if (this.Vars[name].BinaryOperation(toValue, Token.More).Number == 1)
-            {
-                int counter = 0;
-                while (counter >= 0)
-                {
-                    this.lexer.ReadToken();
-                    if (this.HasClause(this.lexer.CurrentToken)) counter++;
-                    else if (this.lexer.CurrentToken == Token.End) counter--;
-                }
-                this.clauses.Pop();
-            }
-            this.lexer.ReadToken();
+            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
         }
 
         Value Expr(int lowestPrec = int.MaxValue - 1)
@@ -310,11 +287,11 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
             while (true)
             {
-                if (!this.IsOperator(this.lexer.CurrentToken)) break;
-                if (!this.operatorProcs.TryGetValue(this.lexer.CurrentToken, out var prec)) prec = int.MaxValue;
+                if (!this.IsOperator(this.lexer.Token)) break;
+                if (!this.operatorProcs.TryGetValue(this.lexer.Token, out var prec)) prec = int.MaxValue;
                 if (prec >= lowestPrec) break;
 
-                var op = this.lexer.CurrentToken;
+                var op = this.lexer.Token;
                 this.lexer.ReadToken();
                 var rhs = this.Expr(prec);
                 lhs = lhs.BinaryOperation(rhs, op);
@@ -327,11 +304,11 @@ namespace Suconbu.Scripting.Memezo
         {
             var primary = Value.Zero;
 
-            if (this.lexer.CurrentToken == Token.Value)
+            if (this.lexer.Token == Token.Value)
             {
                 primary = this.lexer.Value;
             }
-            else if (this.lexer.CurrentToken == Token.Identifer)
+            else if (this.lexer.Token == Token.Identifer)
             {
                 if (this.Vars.ContainsKey(this.lexer.Identifer))
                 {
@@ -349,29 +326,34 @@ namespace Suconbu.Scripting.Memezo
                     this.RiseError($"UndeclaredIdentifier: {this.lexer.Identifer}");
                 }
             }
-            else if (this.lexer.CurrentToken == Token.LeftParen)
+            else if (this.lexer.Token == Token.LeftParen)
             {
                 this.lexer.ReadToken();
                 primary = this.Expr();
-                this.VerifyToken(this.lexer.CurrentToken, Token.RightParen);
+                this.VerifyToken(this.lexer.Token, Token.RightParen);
             }
-            else if (this.lexer.CurrentToken == Token.Plus || this.lexer.CurrentToken == Token.Minus)
+            else if (this.lexer.Token == Token.Plus || this.lexer.Token == Token.Minus)
             {
-                var op = this.lexer.CurrentToken;
+                var op = this.lexer.Token;
                 this.lexer.ReadToken();
                 primary = Value.Zero.BinaryOperation(this.Primary(), op); // we dont realy have a unary operators
             }
-            else if (this.lexer.CurrentToken == Token.Not)
+            else if (this.lexer.Token == Token.Not)
             {
                 this.lexer.ReadToken();
                 primary = Value.Zero.BinaryOperation(this.Primary(), Token.Equal);
             }
             else
             {
-                this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
+                this.RiseError($"UnexpectedToken: {this.lexer.Token}");
             }
 
             return primary;
+        }
+
+        void VerifyToken(Token token, Token expectedToken)
+        {
+            if (token != expectedToken) this.RiseError($"MissingToken: {expectedToken}");
         }
 
         List<Value> ReadArguments()
@@ -382,7 +364,7 @@ namespace Suconbu.Scripting.Memezo
                 if (this.lexer.ReadToken() != Token.RightParen)
                 {
                     args.Add(this.Expr());
-                    if (this.lexer.CurrentToken == Token.Comma) continue;
+                    if (this.lexer.Token == Token.Comma) continue;
                 }
                 break;
             }
@@ -391,12 +373,17 @@ namespace Suconbu.Scripting.Memezo
 
         bool HasClause(Token token)
         {
-            return this.lexer.CurrentToken == Token.If || this.lexer.CurrentToken == Token.For;
+            return this.lexer.Token == Token.If || this.lexer.Token == Token.For;
         }
 
         bool IsOperator(Token token)
         {
             return Token.OperatorBegin <= token && token <= Token.OperatorEnd;
+        }
+
+        void RiseError(string message)
+        {
+            throw new Exception(message);
         }
     }
 
@@ -520,24 +507,9 @@ namespace Suconbu.Scripting.Memezo
     {
         public static void InstallAll(Interpreter interpreter)
         {
-            interpreter.AddFunction("str", Str);
-            interpreter.AddFunction("num", Num);
             interpreter.AddFunction("abs", Abs);
             interpreter.AddFunction("min", Min);
             interpreter.AddFunction("max", Max);
-            //interpreter.AddFunction("not", Not);
-        }
-
-        public static Value Str(List<Value> args)
-        {
-            if (args.Count < 1) throw new ArgumentException();
-            return args[0].Convert(ValueType.String);
-        }
-
-        public static Value Num(List<Value> args)
-        {
-            if (args.Count < 1) throw new ArgumentException();
-            return args[0].Convert(ValueType.Number);
         }
 
         public static Value Abs(List<Value> args)
@@ -557,12 +529,6 @@ namespace Suconbu.Scripting.Memezo
             if (args.Count < 2) throw new ArgumentException();
             return new Value(Math.Max(args[0].Number, args[1].Number));
         }
-
-        //public static Value Not(List<Value> args)
-        //{
-        //    if (args.Count < 1) throw new ArgumentException();
-        //    return new Value(args[0].Number == 0 ? 1 : 0);
-        //}
     }
 
     /// <summary>
@@ -570,9 +536,8 @@ namespace Suconbu.Scripting.Memezo
     /// </summary>
     class Lexer
     {
-        public Token CurrentToken { get; private set; }
+        public Token Token { get; private set; }
         public Location TokenLocation { get; private set; }
-        public Location CurrentLocation { get { return this.currentLocation; } }
         public string Identifer { get; private set; }
         public Value Value { get; private set; }
         public int TotalTokenCount { get; private set; }
@@ -609,7 +574,7 @@ namespace Suconbu.Scripting.Memezo
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
             else if (this.IsStringEnclosure(this.currentChar)) token = this.ReadString(this.currentChar);
             else token = this.ReadOperator();
-            this.CurrentToken = token;
+            this.Token = token;
             this.TotalTokenCount++;
             return token;
         }
