@@ -37,7 +37,7 @@ namespace Suconbu.Scripting
                     {
                         pattern = match.Groups[1].Value;
                     }
-                    RunTest(@"..\..", pattern);
+                    RunTest(@"..\..\test", pattern);
                 }
                 else if (line == "@vars")
                 {
