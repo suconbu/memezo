@@ -241,17 +241,7 @@ namespace Suconbu.Scripting.Memezo
         {
             // Current:Token.LParen
             var name = this.lexer.Identifer;
-            var args = new List<Value>();
-            while (true)
-            {
-                if (this.lexer.ReadToken() != Token.RightParen)
-                {
-                    args.Add(this.Expr());
-                    if (this.lexer.CurrentToken == Token.Comma) continue;
-                    if (this.lexer.CurrentToken != Token.RightParen) this.RiseError($"UnexpectedToken: {this.lexer.CurrentToken}");
-                }
-                break;
-            }
+            var args = this.ReadArguments();
             this.lexer.ReadToken();
             if (this.functions.TryGetValue(name, out var function)) function(args);
             else if (this.actions.TryGetValue(name, out var action)) action(args);
@@ -346,17 +336,7 @@ namespace Suconbu.Scripting.Memezo
                 {
                     var name = this.lexer.Identifer;
                     this.VerifyToken(this.lexer.ReadToken(), Token.LeftParen);
-
-                    var args = new List<Value>();
-                    while (true)
-                    {
-                        if (this.lexer.ReadToken() != Token.RightParen)
-                        {
-                            args.Add(this.Expr());
-                            if (this.lexer.CurrentToken == Token.Comma) continue;
-                        }
-                        break;
-                    }
+                    var args = this.ReadArguments();
                     primary = this.functions[name](args);
                 }
                 else
@@ -387,6 +367,21 @@ namespace Suconbu.Scripting.Memezo
             }
 
             return primary;
+        }
+
+        List<Value> ReadArguments()
+        {
+            var args = new List<Value>();
+            while (true)
+            {
+                if (this.lexer.ReadToken() != Token.RightParen)
+                {
+                    args.Add(this.Expr());
+                    if (this.lexer.CurrentToken == Token.Comma) continue;
+                }
+                break;
+            }
+            return args;
         }
 
         bool IsOperator(Token token)
