@@ -14,7 +14,6 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public delegate Value FunctionHandler(List<Value> args);
-        public delegate void ActionHandler(List<Value> args);
 
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
@@ -23,13 +22,11 @@ namespace Suconbu.Scripting.Memezo
         public int TotalTokenCount { get { return this.lexer.TotalTokenCount; } }
 
         Lexer lexer;
-        //Token currentToken;
         Location statementLocation;
         bool exit;
 
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
-        readonly Dictionary<string, ActionHandler> actions = new Dictionary<string, ActionHandler>();
         readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
         {
             { Token.Exponent, 0 },
@@ -49,11 +46,6 @@ namespace Suconbu.Scripting.Memezo
         public void AddFunction(string name, FunctionHandler function)
         {
             this.functions[name] = function;
-        }
-
-        public void AddAction(string name, ActionHandler action)
-        {
-            this.actions[name] = action;
         }
 
         public bool Run(string input)
@@ -275,9 +267,10 @@ namespace Suconbu.Scripting.Memezo
             var name = this.lexer.Identifer;
             var args = this.ReadArguments();
             this.lexer.ReadToken();
-            if (this.functions.TryGetValue(name, out var function)) function(args);
-            else if (this.actions.TryGetValue(name, out var action)) action(args);
-            else this.RiseError($"UndeclaredIdentifier: {name}");
+            if (this.functions.TryGetValue(name, out var function))
+                function(args);
+            else
+                this.RiseError($"UndeclaredIdentifier: {name}");
             Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
         }
 

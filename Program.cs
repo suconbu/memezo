@@ -15,8 +15,6 @@ namespace Suconbu.Scripting
         {
             var interpreter = new Memezo.Interpreter();
             var output = new StringBuilder();
-            interpreter.AddAction("print", (a) => Console.Write(a.Count > 0 ? a.First().ToString() : null));
-            interpreter.AddAction("printline", (a) => Console.WriteLine(a.Count > 0 ? a.First().ToString() : null));
             while (true)
             {
                 Console.Write("> ");
@@ -74,10 +72,10 @@ namespace Suconbu.Scripting
 
                 var interpreter = new Memezo.Interpreter();
                 var output = new StringBuilder();
-                interpreter.AddAction("print", (a) => output.Append(a.Count > 0 ? a.First().ToString() : null));
-                interpreter.AddAction("printline", (a) => output.AppendLine(a.Count > 0 ? a.First().ToString() : null));
-                interpreter.AddAction("debug", (a) => Debug.Write(a.Count > 0 ? a.First().ToString() : null));
-                interpreter.AddAction("debugline", (a) => Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null));
+                interpreter.AddFunction("print", (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
+                interpreter.AddFunction("printline", (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
+                interpreter.AddFunction("debug", (a) => { Debug.Write(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
+                interpreter.AddFunction("debugline", (a) => { Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
 
                 var code = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
