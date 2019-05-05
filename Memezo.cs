@@ -507,20 +507,26 @@ namespace Suconbu.Scripting.Memezo
 
         public static Value Abs(List<Value> args)
         {
-            if (args.Count < 1) throw new ArgumentException();
+            if (args.Count != 1) throw new ArgumentException();
             return new Value(Math.Abs(args[0].Number));
         }
 
         public static Value Min(List<Value> args)
         {
             if (args.Count < 2) throw new ArgumentException();
-            return new Value(Math.Min(args[0].Number, args[1].Number));
+            var min = double.MaxValue;
+            foreach (var arg in args)
+                min = Math.Min(min, arg.Number);
+            return new Value(min);
         }
 
         public static Value Max(List<Value> args)
         {
             if (args.Count < 2) throw new ArgumentException();
-            return new Value(Math.Max(args[0].Number, args[1].Number));
+            var max = double.MinValue;
+            foreach (var arg in args)
+                max = Math.Max(max, arg.Number);
+            return new Value(max);
         }
     }
 
