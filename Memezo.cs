@@ -602,6 +602,7 @@ namespace Suconbu.Scripting.Memezo
             else if (this.currentChar == '#') token = this.ReadComment();
             else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadKeyword();
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
+            else if (this.IsStringEnclosure(this.currentChar)) token = this.ReadString(this.currentChar);
             else token = this.ReadOperator();
             this.CurrentToken = token;
             this.TotalTokenCount++;
@@ -674,30 +675,19 @@ namespace Suconbu.Scripting.Memezo
             else if (this.currentChar == '%') token = Token.Remainder;
             else if (this.currentChar == '(') token = Token.LeftParen;
             else if (this.currentChar == ')') token = Token.RightParen;
-            else if (this.currentChar == '\'')
-            {
-                while (this.currentChar != '\n') this.ReadChar();
-                this.ReadChar();
-                token = this.ReadToken();
-            }
             else if (this.currentChar == '<' && this.nextChar == '=') { token = Token.LessEqual; this.ReadChar(); }
             else if (this.currentChar == '<') token = Token.Less;
             else if (this.currentChar == '>' && this.nextChar == '=') { token = Token.MoreEqual; this.ReadChar(); }
             else if (this.currentChar == '>') token = Token.More;
-            else if (this.currentChar == '"')
-            {
-                this.Value = this.ReadString();
-                token = Token.Value;
-            }
             else token = Token.Unkown;
             this.ReadChar();
             return token;
         }
 
-        Value ReadString()
+        Token ReadString(char enclosure)
         {
             var s = new StringBuilder();
-            while (this.ReadChar() != '"')
+            while (this.ReadChar() != enclosure)
             {
                 if (this.currentChar == (char)0) throw new Exception($"InvalidString: {s}");
                 if (this.currentChar == '\\')
@@ -708,7 +698,7 @@ namespace Suconbu.Scripting.Memezo
                     else if (c == 'n') s.Append('\n');
                     else if (c == 't') s.Append('\t');
                     else if (c == '\\') s.Append('\\');
-                    else if (c == '"') s.Append('"');
+                    else if (c == enclosure) s.Append(enclosure);
                     else s.Append(c);
                 }
                 else
@@ -716,7 +706,9 @@ namespace Suconbu.Scripting.Memezo
                     s.Append(this.currentChar);
                 }
             }
-            return new Value(s.ToString());
+            this.ReadChar();
+            this.Value = new Value(s.ToString());
+            return Token.Value;
         }
 
 
@@ -755,6 +747,11 @@ namespace Suconbu.Scripting.Memezo
         bool IsLetterOrDigitOrUnderscore(char c)
         {
             return char.IsLetterOrDigit(c) || c == '_';
+        }
+
+        bool IsStringEnclosure(char c)
+        {
+            return c == '"' || c == '\'';
         }
     }
 

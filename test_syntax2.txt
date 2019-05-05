@@ -1,0 +1,4 @@
+# OK:This 'is' a "Pen".This 'is' a "Pen".
+
+print("This 'is' a \"Pen\".")
+print('This \'is\' a "Pen".')
