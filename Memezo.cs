@@ -1,4 +1,4 @@
-﻿// MemezoScript - The script language for automated operation.
+﻿// MemezoScript - Embeded scripting environment.
 // Based on https://github.com/Timu5/BasicSharp
 
 using System;

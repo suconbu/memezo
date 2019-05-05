@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.IO;
 using System.Text.RegularExpressions;
 using System.Diagnostics;
+using System.Reflection;
 
 namespace Suconbu.Scripting
 {
@@ -24,7 +25,11 @@ namespace Suconbu.Scripting
                 else
                     Console.Write("> ");
                 var line = Console.ReadLine();
-                if (line.StartsWith("@test"))
+                if (line == "@version")
+                {
+                    Console.WriteLine("v" + Assembly.GetExecutingAssembly().GetName().Version.ToString(3));
+                }
+                else if (line.StartsWith("@test"))
                 {
                     var pattern = "test*.txt";
                     var match = Regex.Match(line, "@test (.+)");
