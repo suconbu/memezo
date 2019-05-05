@@ -119,7 +119,6 @@ namespace Suconbu.Scripting.Memezo
                 this.lexer.ReadToken();
             var keyword = this.lexer.Token;
             this.statementLocation = this.lexer.TokenLocation;
-            //Debug.WriteLine($"Statement keyword:{keyword}");
             switch (keyword)
             {
                 case Token.Print: this.Print(); break;
@@ -159,7 +158,7 @@ namespace Suconbu.Scripting.Memezo
             else
                 this.RiseError($"UnexpectedToken: {this.lexer.Token}");
             this.VerifyToken(this.lexer.Token, Token.Colon);
-            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: {this.lexer.Token} {result}");
+            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: {this.lexer.Token} {result}");
 
             if (!result)
             {
@@ -229,7 +228,7 @@ namespace Suconbu.Scripting.Memezo
 
             this.VerifyToken(this.lexer.Token, Token.Colon);
 
-            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: For {this.Vars[name]} to {toValue}");
+            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: For {this.Vars[name]} to {toValue}");
 
             if (this.Vars[name].BinaryOperation(toValue, Token.More).Number == 1)
             {
@@ -248,7 +247,7 @@ namespace Suconbu.Scripting.Memezo
         void End()
         {
             if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {Token.End}");
-            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: End");
+            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: End");
             var clause = this.clauses.Peek();
             if (clause.Token == Token.If)
                 this.EndIf(clause);
@@ -298,7 +297,7 @@ namespace Suconbu.Scripting.Memezo
             var name = this.lexer.Identifer;
             this.lexer.ReadToken();
             this.Vars[name] = this.Expr();
-            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: Assing {name}={this.Vars[name].ToString()}");
+            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: Assign {name}={this.Vars[name].ToString()}");
         }
 
         void Invoke()
@@ -311,7 +310,7 @@ namespace Suconbu.Scripting.Memezo
                 function(args);
             else
                 this.RiseError($"UndeclaredIdentifier: {name}");
-            Debug.WriteLine($"{this.lexer.TokenLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
+            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
         }
 
         Value Expr(int lowestPrec = int.MaxValue - 1)
@@ -412,6 +411,11 @@ namespace Suconbu.Scripting.Memezo
         bool IsOperator(Token token)
         {
             return Token.OperatorBegin <= token && token <= Token.OperatorEnd;
+        }
+
+        void DebugLog(string s)
+        {
+            //Debug.WriteLine(s);
         }
 
         void RiseError(string message)
@@ -639,7 +643,6 @@ namespace Suconbu.Scripting.Memezo
         {
             this.Identifer = this.currentChar.ToString();
             while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
-            //Debug.WriteLine($"GetToken Identifier:{this.Identifer}");
             var token = Token.Identifer;
             switch (this.Identifer)
             {
