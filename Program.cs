@@ -14,13 +14,17 @@ namespace Suconbu.Scripting
         static void Main(string[] args)
         {
             var interpreter = new Memezo.Interpreter();
+            interpreter.PrintValue += (s, e) => Console.WriteLine(e);
+
             var output = new StringBuilder();
             while (true)
             {
-                Console.Write("> ");
+                if(interpreter.DeferedClauseCount > 0)
+                    Console.Write(". ");
+                else
+                    Console.Write("> ");
                 var line = Console.ReadLine();
-                if (line == "exit") return;
-                else if (line.StartsWith("@test"))
+                if (line.StartsWith("@test"))
                 {
                     var pattern = "test*.txt";
                     var match = Regex.Match(line, "@test (.+)");
@@ -40,11 +44,7 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    if (interpreter.Run(line))
-                    {
-                        if (interpreter.PrintValue.HasValue) Console.WriteLine(interpreter.PrintValue);
-                    }
-                    else
+                    if (!interpreter.RunAsInteractive(line))
                     {
                         Console.WriteLine(interpreter.Error);
                     }

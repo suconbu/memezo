@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Suconbu.Scripting.Memezo
 {
@@ -14,16 +15,18 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public delegate Value FunctionHandler(List<Value> args);
+        public event EventHandler<string> PrintValue = delegate { };
 
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
-        public Value? PrintValue { get; private set; }
+        public int DeferedClauseCount { get; private set; }
         public int TotalStatementCount { get; private set; }
         public int TotalTokenCount { get { return this.lexer.TotalTokenCount; } }
 
         Lexer lexer;
         Location statementLocation;
         bool exit;
+        Value returnValue;
 
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
@@ -55,6 +58,7 @@ namespace Suconbu.Scripting.Memezo
             {
                 this.Initialize();
                 this.lexer = new Lexer(input);
+                this.lexer.ReadToken();
                 while (!this.exit) this.Statement();
                 result = true;
             }
@@ -65,10 +69,45 @@ namespace Suconbu.Scripting.Memezo
             return result;
         }
 
+        public bool RunAsInteractive(string input)
+        {
+            if (this.lexer == null)
+            {
+                this.Initialize();
+                this.lexer = new Lexer(input + "\n");
+            }
+            else
+            {
+                this.lexer.AddSource(input + "\n");
+            }
+
+            if (Regex.IsMatch(input, @"\b(if|for)\b.*:")) this.DeferedClauseCount++;
+            else if (input.Trim() == "end") this.DeferedClauseCount--;
+            if (this.DeferedClauseCount > 0) return true;
+
+            var clauseCount = this.clauses.Count;
+            var result = false;
+            try
+            {
+                this.exit = false;
+                this.lexer.ReadToken();
+                while (!this.exit) this.Statement();
+                result = true;
+            }
+            catch (Exception ex)
+            {
+                this.Error = new ErrorInfo(ex.Message, this.lexer.TokenLocation);
+                while (this.clauses.Count > clauseCount) this.clauses.Pop();
+            }
+            // Consider to case of return in the middle.
+            while (this.lexer.ReadToken() != Token.EOF) ;
+            return result;
+        }
+
         void Initialize()
         {
+            this.returnValue = Value.Zero;
             this.exit = false;
-            this.PrintValue = null;
             this.TotalStatementCount = 0;
             this.clauses.Clear();
         }
@@ -76,7 +115,6 @@ namespace Suconbu.Scripting.Memezo
         void Statement()
         {
             this.TotalStatementCount++;
-
             while (this.lexer.Token == Token.Unkown || this.lexer.Token == Token.NewLine)
                 this.lexer.ReadToken();
             var keyword = this.lexer.Token;
@@ -90,7 +128,7 @@ namespace Suconbu.Scripting.Memezo
                 case Token.Else: this.IfSkip(); break;
                 case Token.For: this.For(); break;
                 case Token.End: this.End(); break;
-                case Token.Exit: this.Exit(); break;
+                case Token.Return: this.Return(); break;
                 case Token.Identifer: this.Identifier(); break;
                 case Token.EOF: this.Eof(); break;
                 default: this.RiseError($"UnexpectedToken: {keyword}"); break;
@@ -100,7 +138,7 @@ namespace Suconbu.Scripting.Memezo
         void Print()
         {
             this.lexer.ReadToken();
-            this.PrintValue = this.Expr();
+            this.PrintValue(this, this.Expr().ToString());
         }
 
         void If()
@@ -178,7 +216,6 @@ namespace Suconbu.Scripting.Memezo
 
             this.lexer.ReadToken();
             Value fromValue = this.Expr();
-
             if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
                 this.Vars[name] = fromValue;
@@ -233,8 +270,11 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.Move(clause.Location);
         }
 
-        void Exit()
+        void Return()
         {
+            this.lexer.ReadToken();
+            if (this.lexer.Token != Token.NewLine && this.lexer.Token != Token.EOF)
+                this.returnValue = this.Expr();
             this.exit = true;
         }
 
@@ -541,7 +581,7 @@ namespace Suconbu.Scripting.Memezo
         public Value Value { get; private set; }
         public int TotalTokenCount { get; private set; }
 
-        readonly string source;
+        string source;
         Location currentLocation;
         char currentChar;
         char nextChar;
@@ -550,6 +590,14 @@ namespace Suconbu.Scripting.Memezo
         {
             this.source = input;
             this.Move(new Location());
+        }
+
+        Lexer() { }
+
+        public void AddSource(string input)
+        {
+            this.source += input;
+            this.Move(this.currentLocation);
         }
 
         public void Move(Location location)
@@ -602,7 +650,7 @@ namespace Suconbu.Scripting.Memezo
                 case "end": token = Token.End; break;
                 case "for": token = Token.For; break;
                 case "to": token = Token.To; break;
-                case "exit": token = Token.Exit; break;
+                case "return": token = Token.Return; break;
                 case "and": token = Token.And; break;
                 case "or": token = Token.Or; break;
                 case "not": token = Token.Not; break;
@@ -753,7 +801,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Keyword
-        Print, If, Elif, Else, For, To, End, Exit,
+        Print, If, Elif, Else, For, To, End, Return,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
