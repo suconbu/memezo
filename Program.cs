@@ -77,10 +77,10 @@ namespace Suconbu.Scripting
 
                 var interpreter = new Memezo.Interpreter();
                 var output = new StringBuilder();
-                interpreter.AddFunction("print", (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
-                interpreter.AddFunction("printline", (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
-                interpreter.AddFunction("debug", (a) => { Debug.Write(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
-                interpreter.AddFunction("debugline", (a) => { Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; });
+                interpreter.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
+                interpreter.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
+                interpreter.Functions["debug"] = (a) => { Debug.Write(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
+                interpreter.Functions["debugline"] = (a) => { Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
 
                 var code = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();

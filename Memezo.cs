@@ -14,9 +14,10 @@ namespace Suconbu.Scripting.Memezo
 
     public class Interpreter
     {
-        public delegate Value FunctionHandler(List<Value> args);
+        public delegate Value Function(List<Value> args);
         public event EventHandler<string> PrintValue = delegate { };
 
+        public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
         public int DeferedClauseCount { get; private set; }
@@ -29,7 +30,6 @@ namespace Suconbu.Scripting.Memezo
         Value returnValue;
 
         readonly Stack<Clause> clauses = new Stack<Clause>();
-        readonly Dictionary<string, FunctionHandler> functions = new Dictionary<string, FunctionHandler>();
         readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
         {
             { Token.Exponent, 0 },
@@ -44,11 +44,6 @@ namespace Suconbu.Scripting.Memezo
         public Interpreter()
         {
             BuiltinFunction.InstallAll(this);
-        }
-
-        public void AddFunction(string name, FunctionHandler function)
-        {
-            this.functions[name] = function;
         }
 
         public bool Run(string input)
@@ -306,7 +301,7 @@ namespace Suconbu.Scripting.Memezo
             var name = this.lexer.Identifer;
             var args = this.ReadArguments();
             this.lexer.ReadToken();
-            if (this.functions.TryGetValue(name, out var function))
+            if (this.Functions.TryGetValue(name, out var function))
                 function(args);
             else
                 this.RiseError($"UndeclaredIdentifier: {name}");
@@ -346,12 +341,12 @@ namespace Suconbu.Scripting.Memezo
                 {
                     primary = this.Vars[this.lexer.Identifer];
                 }
-                else if (this.functions.ContainsKey(this.lexer.Identifer))
+                else if (this.Functions.ContainsKey(this.lexer.Identifer))
                 {
                     var name = this.lexer.Identifer;
                     this.VerifyToken(this.lexer.ReadToken(), Token.LeftParen);
                     var args = this.ReadArguments();
-                    primary = this.functions[name](args);
+                    primary = this.Functions[name](args);
                 }
                 else
                 {
@@ -450,33 +445,27 @@ namespace Suconbu.Scripting.Memezo
         public double Number { get; set; }
         public string String { get; set; }
 
-        public Value(double number) : this()
+        public Value(double n) : this()
         {
             this.Type = ValueType.Number;
-            this.Number = number;
+            this.Number = n;
         }
 
-        public Value(string str) : this()
+        public Value(string s) : this()
         {
             this.Type = ValueType.String;
-            this.String = str;
+            this.String = s;
         }
 
-        public Value Convert(ValueType type)
+        public Value ConvertTo(ValueType type)
         {
             if (this.Type != type)
             {
-                switch (type)
-                {
-                    case ValueType.Number:
-                        this.Number = double.Parse(this.String);
-                        this.Type = ValueType.Number;
-                        break;
-                    case ValueType.String:
-                        this.String = this.Number.ToString();
-                        this.Type = ValueType.String;
-                        break;
-                }
+                if (type == ValueType.Number)
+                    this.Number = double.TryParse(this.String, out var n) ? n : double.NaN;
+                else if(type == ValueType.String)
+                    this.String = this.Number.ToString();
+                this.Type = type;
             }
             return this;
         }
@@ -492,9 +481,9 @@ namespace Suconbu.Scripting.Memezo
             if (a.Type != b.Type)
             {
                 if (a.Type > b.Type)
-                    b = b.Convert(a.Type);
+                    b = b.ConvertTo(a.Type);
                 else
-                    a = a.Convert(b.Type);
+                    a = a.ConvertTo(b.Type);
             }
 
             if (token == Token.Plus)
@@ -544,9 +533,23 @@ namespace Suconbu.Scripting.Memezo
     {
         public static void InstallAll(Interpreter interpreter)
         {
-            interpreter.AddFunction("abs", Abs);
-            interpreter.AddFunction("min", Min);
-            interpreter.AddFunction("max", Max);
+            interpreter.Functions["String"] = String;
+            interpreter.Functions["Number"] = Number;
+            interpreter.Functions["abs"] = Abs;
+            interpreter.Functions["min"] = Min;
+            interpreter.Functions["max"] = Max;
+        }
+
+        public static Value String(List<Value> args)
+        {
+            if (args.Count != 1) throw new ArgumentException();
+            return args[0].ConvertTo(ValueType.String);
+        }
+
+        public static Value Number(List<Value> args)
+        {
+            if (args.Count != 1) throw new ArgumentException();
+            return args[0].ConvertTo(ValueType.Number);
         }
 
         public static Value Abs(List<Value> args)
