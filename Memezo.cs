@@ -32,8 +32,8 @@ namespace Suconbu.Scripting.Memezo
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
         {
-            { Token.Exponent, 0 },
-            { Token.Multiply, 1 }, {Token.Division, 1 }, {Token.FloorDivision, 1 }, {Token.Remainder, 1 },
+            { Token.DoubleAsterisk, 0 },
+            { Token.Asterisk, 1 }, {Token.Slash, 1 }, {Token.DoubleSlash, 1 }, {Token.Percent, 1 },
             { Token.Plus, 2 }, { Token.Minus, 2 },
             { Token.Equal, 3 }, { Token.NotEqual, 3 }, { Token.Less, 3 }, { Token.More, 3 }, { Token.LessEqual, 3 },  { Token.MoreEqual, 3 },
             { Token.Not, 4 },
@@ -438,12 +438,14 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
+    // Immutable
     public struct Value
     {
         public static readonly Value Zero = new Value(0);
-        public ValueType Type { get; set; }
-        public double Number { get; set; }
-        public string String { get; set; }
+
+        public ValueType Type { get; private set; }
+        public double Number { get; private set; }
+        public string String { get; private set; }
 
         public Value(double n) : this()
         {
@@ -457,19 +459,6 @@ namespace Suconbu.Scripting.Memezo
             this.String = s;
         }
 
-        public Value ConvertTo(ValueType type)
-        {
-            if (this.Type != type)
-            {
-                if (type == ValueType.Number)
-                    this.Number = double.TryParse(this.String, out var n) ? n : double.NaN;
-                else if(type == ValueType.String)
-                    this.String = this.Number.ToString();
-                this.Type = type;
-            }
-            return this;
-        }
-
         public override string ToString()
         {
             return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
@@ -478,13 +467,8 @@ namespace Suconbu.Scripting.Memezo
         internal Value BinaryOperation(Value b, Token token)
         {
             var a = this;
-            if (a.Type != b.Type)
-            {
-                if (a.Type > b.Type)
-                    b = b.ConvertTo(a.Type);
-                else
-                    a = a.ConvertTo(b.Type);
-            }
+
+            if (a.Type != b.Type) throw new Exception($"Mismatched data types: {a.Type}, {b.Type}");
 
             if (token == Token.Plus)
             {
@@ -507,16 +491,16 @@ namespace Suconbu.Scripting.Memezo
             else
             {
                 if (a.Type == ValueType.String)
-                    throw new Exception($"CannotSupportOperationForString: {token}");
+                    throw new Exception($"NotSupportedOperatorForString: {token}");
 
                 switch (token)
                 {
                     case Token.Minus: return new Value(a.Number - b.Number);
-                    case Token.Multiply: return new Value(a.Number * b.Number);
-                    case Token.Division: return new Value(a.Number / b.Number);
-                    case Token.FloorDivision: return new Value(Math.Floor(a.Number / b.Number));
-                    case Token.Remainder: return new Value(a.Number % b.Number);
-                    case Token.Exponent: return new Value(Math.Pow(a.Number, b.Number));
+                    case Token.Asterisk: return new Value(a.Number * b.Number);
+                    case Token.Slash: return new Value(a.Number / b.Number);
+                    case Token.DoubleSlash: return new Value(Math.Floor(a.Number / b.Number));
+                    case Token.Percent: return new Value(a.Number % b.Number);
+                    case Token.DoubleAsterisk: return new Value(Math.Pow(a.Number, b.Number));
                     case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
                     case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
                     case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
@@ -533,46 +517,62 @@ namespace Suconbu.Scripting.Memezo
     {
         public static void InstallAll(Interpreter interpreter)
         {
-            interpreter.Functions["String"] = String;
-            interpreter.Functions["Number"] = Number;
+            interpreter.Functions["str"] = Str;
+            interpreter.Functions["int"] = Int;
+            interpreter.Functions["float"] = Float;
             interpreter.Functions["abs"] = Abs;
             interpreter.Functions["min"] = Min;
             interpreter.Functions["max"] = Max;
         }
 
-        public static Value String(List<Value> args)
+        public static Value Str(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException();
-            return args[0].ConvertTo(ValueType.String);
+            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            return new Value(args[0].ToString());
         }
 
-        public static Value Number(List<Value> args)
+        public static Value Int(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException();
-            return args[0].ConvertTo(ValueType.Number);
+            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            var value = args[0];
+            return (value.Type == ValueType.String) ? new Value(long.Parse(value.String)) : new Value((long)value.Number);
+        }
+
+        public static Value Float(List<Value> args)
+        {
+            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            var value = args[0];
+            return (value.Type == ValueType.String) ? new Value(double.Parse(value.String)) : new Value(value.Number);
         }
 
         public static Value Abs(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException();
+            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            if(args[0].Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
             return new Value(Math.Abs(args[0].Number));
         }
 
         public static Value Min(List<Value> args)
         {
-            if (args.Count < 2) throw new ArgumentException();
+            if (args.Count < 2) throw new ArgumentException("InvalidNumberOfArguments");
             var min = double.MaxValue;
             foreach (var arg in args)
+            {
+                if (arg.Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
                 min = Math.Min(min, arg.Number);
+            }
             return new Value(min);
         }
 
         public static Value Max(List<Value> args)
         {
-            if (args.Count < 2) throw new ArgumentException();
+            if (args.Count < 2) throw new ArgumentException("InvalidNumberOfArguments");
             var max = double.MinValue;
             foreach (var arg in args)
+            {
+                if (arg.Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
                 max = Math.Max(max, arg.Number);
+            }
             return new Value(max);
         }
     }
@@ -689,11 +689,11 @@ namespace Suconbu.Scripting.Memezo
             else if (this.currentChar == '!' && this.nextChar == '=') { token = Token.NotEqual; this.ReadChar(); }
             else if (this.currentChar == '+') token = Token.Plus;
             else if (this.currentChar == '-') token = Token.Minus;
-            else if (this.currentChar == '*' && this.nextChar == '*') { token = Token.Exponent; this.ReadChar(); }
-            else if (this.currentChar == '*') token = Token.Multiply;
-            else if (this.currentChar == '/' && this.nextChar == '/') { token = Token.FloorDivision; this.ReadChar(); }
-            else if (this.currentChar == '/') token = Token.Division;
-            else if (this.currentChar == '%') token = Token.Remainder;
+            else if (this.currentChar == '*' && this.nextChar == '*') { token = Token.DoubleAsterisk; this.ReadChar(); }
+            else if (this.currentChar == '*') token = Token.Asterisk;
+            else if (this.currentChar == '/' && this.nextChar == '/') { token = Token.DoubleSlash; this.ReadChar(); }
+            else if (this.currentChar == '/') token = Token.Slash;
+            else if (this.currentChar == '%') token = Token.Percent;
             else if (this.currentChar == '(') token = Token.LeftParen;
             else if (this.currentChar == ')') token = Token.RightParen;
             else if (this.currentChar == '<' && this.nextChar == '=') { token = Token.LessEqual; this.ReadChar(); }
@@ -815,7 +815,7 @@ namespace Suconbu.Scripting.Memezo
         OperatorBegin,
 
         // Arithmetic operator
-        Plus, Minus, Multiply, Division, FloorDivision, Remainder, Exponent,
+        Plus, Minus, Asterisk, Slash, DoubleSlash, Percent, DoubleAsterisk,
 
         // Comparison operator
         Equal, Less, More, NotEqual, LessEqual, MoreEqual,
