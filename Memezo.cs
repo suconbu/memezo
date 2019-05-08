@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -21,7 +22,7 @@ namespace Suconbu.Scripting.Memezo
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
-        public int DeferedClauseCount { get; private set; }
+        public int nestingLevelOfDeferredSource { get; private set; }
         public int TotalStatementCount { get; private set; }
         public int TotalTokenCount { get; private set; }
 
@@ -29,7 +30,7 @@ namespace Suconbu.Scripting.Memezo
         Location statementLocation;
         bool exit;
         Value returnValue = Value.Zero;
-        StringBuilder interactiveInput = new StringBuilder();
+        StringBuilder deferredSource = new StringBuilder();
 
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<TokenType, int> operatorPrecs = new Dictionary<TokenType, int>()
@@ -48,15 +49,20 @@ namespace Suconbu.Scripting.Memezo
             BuiltinFunction.InstallAll(this);
         }
 
-        public bool Run(string input)
+        public bool BatchRun(string source)
         {
             var result = false;
             try
             {
-                this.lexer = new Lexer(input);
+                this.exit = false;
+                this.lexer = new Lexer(source);
                 this.lexer.TokenRead += (s, e) => this.TotalTokenCount++;
                 this.lexer.ReadToken();
-                while (!this.exit) this.Statement();
+                while (!this.exit)
+                {
+                    this.Statement();
+                    this.TotalStatementCount++;
+                }
                 result = true;
             }
             catch (Exception ex)
@@ -66,37 +72,25 @@ namespace Suconbu.Scripting.Memezo
             return result;
         }
 
-        public bool RunAsInteractive(string input)
+        public bool InteractiveRun(string source, out bool deferred)
         {
-            this.interactiveInput.AppendLine(input);
-            var tokens = Lexer.SplitTokens(input);
-            this.DeferedClauseCount += tokens.Count(t => t.HasClause());
-            this.DeferedClauseCount -= tokens.Count(t => t.Type == TokenType.End);
-            if (this.DeferedClauseCount > 0) return true;
+            deferred = true;
+            this.deferredSource.AppendLine(source);
 
-            var clauseCount = this.clauses.Count;
-            var result = false;
-            try
-            {
-                this.exit = false;
-                this.lexer = new Lexer(this.interactiveInput.ToString());
-                this.lexer.TokenRead += (s, e) => this.TotalTokenCount++;
-                this.lexer.ReadToken();
-                while (!this.exit) this.Statement();
-                result = true;
-            }
-            catch (Exception ex)
-            {
-                this.Error = new ErrorInfo(ex.Message, this.lexer.Token.Location);
-                while (this.clauses.Count > clauseCount) this.clauses.Pop();
-            }
-            this.interactiveInput.Clear();
+            var tokens = Lexer.SplitTokens(source);
+            this.nestingLevelOfDeferredSource += tokens.Count(t => t.HasClause());
+            this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
+            if (this.nestingLevelOfDeferredSource > 0) return true;
+
+            var result = this.BatchRun(this.deferredSource.ToString());
+
+            this.deferredSource.Clear();
+            deferred = false;
             return result;
         }
 
         void Statement()
         {
-            this.TotalStatementCount++;
             while (this.lexer.Token.Type == TokenType.Unkown || this.lexer.Token.Type == TokenType.NewLine)
                 this.lexer.ReadToken();
             this.statementLocation = this.lexer.Token.Location;

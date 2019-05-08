@@ -18,12 +18,11 @@ namespace Suconbu.Scripting
             interpreter.Output += (s, e) => Console.WriteLine(e);
 
             var output = new StringBuilder();
+            var deferred = false;
             while (true)
             {
-                if(interpreter.DeferedClauseCount > 0)
-                    Console.Write(". ");
-                else
-                    Console.Write("> ");
+                Console.Write(deferred ? ". " : "> ");
+
                 var line = Console.ReadLine();
                 if (line == "@version")
                 {
@@ -49,7 +48,7 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    if (!interpreter.RunAsInteractive(line))
+                    if (!interpreter.InteractiveRun(line, out deferred))
                     {
                         Console.WriteLine(interpreter.Error);
                     }
@@ -84,7 +83,7 @@ namespace Suconbu.Scripting
 
                 var code = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
-                var result = interpreter.Run(code);
+                var result = interpreter.BatchRun(code);
                 var elapsed = sw.ElapsedMilliseconds;
 
                 if (expectResult && !result)
