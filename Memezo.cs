@@ -67,6 +67,7 @@ namespace Suconbu.Scripting.Memezo
             {
                 this.Error = new ErrorInfo(ex.Message, this.lexer.Token.Location);
             }
+            this.clauses.Clear();
             return result;
         }
 
@@ -89,28 +90,25 @@ namespace Suconbu.Scripting.Memezo
 
         void Statement()
         {
-            while (this.lexer.Token.Type == TokenType.Unkown || this.lexer.Token.Type == TokenType.NewLine)
-                this.lexer.ReadToken();
+            while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
+
             this.statementLocation = this.lexer.Token.Location;
-            switch (this.lexer.Token.Type)
-            {
-                case TokenType.If: this.If(); break;
-                case TokenType.Elif: this.IfSkip(); break;
-                case TokenType.Else: this.IfSkip(); break;
-                case TokenType.For: this.For(); break;
-                case TokenType.End: this.End(); break;
-                case TokenType.Exit: this.Exit(); break;
-                case TokenType.Eof: this.Eof(); break;
-                default:
-                    if(this.lexer.Token.Type == TokenType.Identifer && this.lexer.NextToken.Type == TokenType.Assign)
-                        this.Assign();
-                    else
-                        this.Output(this, this.Expr().ToQuotedString());
-                    break;
-            }
+            var type = this.lexer.Token.Type;
+            var nextType = this.lexer.NextToken.Type;
+
+            if (type == TokenType.Unkown) this.RiseError($"UnknownToken: {this.lexer.Token}");
+            else if (type == TokenType.If) this.OnIf();
+            else if (type == TokenType.Elif) this.OnAflterIf();
+            else if (type == TokenType.Else) this.OnAflterIf();
+            else if (type == TokenType.For) this.OnFor();
+            else if (type == TokenType.End) this.OnEnd();
+            else if (type == TokenType.Exit) this.OnExit();
+            else if (type == TokenType.Eof) this.OnEof();
+            else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
+            else this.Output(this, this.Expr().ToQuotedString());
         }
 
-        void If()
+        void OnIf()
         {
         Start:
             bool result = true;
@@ -156,7 +154,7 @@ namespace Suconbu.Scripting.Memezo
             }
         }
 
-        void IfSkip()
+        void OnAflterIf()
         {
             // After if clause executed.
             if (this.clauses.Count <= 0 || this.clauses.Peek().Token != TokenType.If)
@@ -176,7 +174,7 @@ namespace Suconbu.Scripting.Memezo
         }
 
 
-        void For()
+        void OnFor()
         {
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Identifer);
             var name = this.lexer.Token.Text;
@@ -214,7 +212,7 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
         }
 
-        void End()
+        void OnEnd()
         {
             if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {TokenType.End}");
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: End");
@@ -239,18 +237,18 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.Move(clause.Location);
         }
 
-        void Exit()
+        void OnExit()
         {
             this.exit = true;
         }
 
-        void Eof()
+        void OnEof()
         {
             if (this.clauses.Count > 0) this.RiseError($"MissingToken: {TokenType.End}");
             this.exit = true;
         }
 
-        void Assign()
+        void OnAssign()
         {
             var name = this.lexer.Token.Text;
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
@@ -415,11 +413,11 @@ namespace Suconbu.Scripting.Memezo
             return (this.Type == ValueType.Number) ? (this.Number != 0.0) : (this.String != string.Empty);
         }
 
-        internal Value BinaryOperation(Value b, TokenType token)
+        internal Value BinaryOperation(Value b, TokenType tokenType)
         {
             var a = this;
 
-            if (token == TokenType.Multiply)
+            if (tokenType == TokenType.Multiply)
             {
                 return
                     (a.Type == ValueType.Number && b.Type == ValueType.Number) ?
@@ -428,7 +426,7 @@ namespace Suconbu.Scripting.Memezo
                         new Value((new StringBuilder().Insert(0, a.String, (int)Math.Max(b.Number, 0.0))).ToString()) :
                     (a.Type == ValueType.Number && b.Type == ValueType.String) ?
                         new Value((new StringBuilder().Insert(0, b.String, (int)Math.Max(a.Number, 0.0))).ToString()) :
-                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+                    throw new Exception($"NotSupportedOperation: {tokenType} for {a.Type}");
             }
 
             if (a.Type != b.Type)
@@ -441,47 +439,45 @@ namespace Suconbu.Scripting.Memezo
                     throw new Exception($"MismatchedDataTypes: {a.Type} x {b.Type}");
             }
 
-            if (token == TokenType.Plus)
+            if (tokenType == TokenType.Plus)
             {
                 return
                     (a.Type == ValueType.Number) ? new Value(a.Number + b.Number) :
                     (a.Type == ValueType.String) ? new Value(a.String + b.String) :
-                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+                    throw new Exception($"NotSupportedOperation: {tokenType} for {a.Type}");
             }
-            else if (token == TokenType.Equal)
+            else if (tokenType == TokenType.Equal)
             {
                 return
                     (a.Type == ValueType.Number) ? new Value(a.Number == b.Number ? 1 : 0) :
                     (a.Type == ValueType.String) ? new Value(a.String == b.String ? 1 : 0) :
-                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+                    throw new Exception($"NotSupportedOperation: {tokenType} for {a.Type}");
             }
-            else if (token == TokenType.NotEqual)
+            else if (tokenType == TokenType.NotEqual)
             {
                 return
                     (a.Type == ValueType.Number) ? new Value(a.Number != b.Number ? 1 : 0) :
                     (a.Type == ValueType.String) ? new Value(a.String != b.String ? 1 : 0) :
-                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+                    throw new Exception($"NotSupportedOperation: {tokenType} for {a.Type}");
             }
             else
             {
-                if (a.Type != ValueType.Number) throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+                if (a.Type != ValueType.Number) throw new Exception($"NotSupportedOperation: {tokenType} for {a.Type}");
 
-                switch (token)
-                {
-                    case TokenType.Minus: return new Value(a.Number - b.Number);
-                    case TokenType.Division: return new Value(a.Number / b.Number);
-                    case TokenType.FloorDivision: return new Value(Math.Floor(a.Number / b.Number));
-                    case TokenType.Remainder: return new Value(a.Number % b.Number);
-                    case TokenType.Exponent: return new Value(Math.Pow(a.Number, b.Number));
-                    case TokenType.Less: return new Value(a.Number < b.Number ? 1 : 0);
-                    case TokenType.Greater: return new Value(a.Number > b.Number ? 1 : 0);
-                    case TokenType.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
-                    case TokenType.GreaterEqual: return new Value(a.Number >= b.Number ? 1 : 0);
-                    case TokenType.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
-                    case TokenType.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
-                }
+                return
+                    (tokenType == TokenType.Minus) ? new Value(a.Number - b.Number) :
+                    (tokenType == TokenType.Division) ? new Value(a.Number / b.Number) :
+                    (tokenType == TokenType.FloorDivision) ? new Value(Math.Floor(a.Number / b.Number)) :
+                    (tokenType == TokenType.Remainder) ? new Value(a.Number % b.Number) :
+                    (tokenType == TokenType.Exponent) ? new Value(Math.Pow(a.Number, b.Number)) :
+                    (tokenType == TokenType.Less) ? new Value(a.Number < b.Number ? 1 : 0) :
+                    (tokenType == TokenType.Greater) ? new Value(a.Number > b.Number ? 1 : 0) :
+                    (tokenType == TokenType.LessEqual) ? new Value(a.Number <= b.Number ? 1 : 0) :
+                    (tokenType == TokenType.GreaterEqual) ? new Value(a.Number >= b.Number ? 1 : 0) :
+                    (tokenType == TokenType.And) ? new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0) :
+                    (tokenType == TokenType.Or) ? new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0) :
+                    throw new Exception($"UnknownBinaryOperator: {tokenType}");
             }
-            throw new Exception($"UnknownBinaryOperator: {token}");
         }
     }
 
@@ -657,24 +653,21 @@ namespace Suconbu.Scripting.Memezo
         Token ReadIdentifier()
         {
             var location = this.currentLocation;
-            var text = this.currentChar.ToString();
-            while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) text += this.currentChar;
-            TokenType type;
-            switch (text)
-            {
-                case "if": type = TokenType.If; break;
-                case "elif": type = TokenType.Elif; break;
-                case "else": type = TokenType.Else; break;
-                case "end": type = TokenType.End; break;
-                case "for": type = TokenType.For; break;
-                case "to": type = TokenType.To; break;
-                case "exit": type = TokenType.Exit; break;
-                case "and": type = TokenType.And; break;
-                case "or": type = TokenType.Or; break;
-                case "not": type = TokenType.Not; break;
-                default: type = TokenType.Identifer; break;
-            }
-            return new Token() { Type = type, Location = location, Text = text };
+            var identifier = this.currentChar.ToString();
+            while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) identifier += this.currentChar;
+            var type =
+                (identifier == "if") ? TokenType.If :
+                (identifier == "elif") ? TokenType.Elif :
+                (identifier == "else") ? TokenType.Else :
+                (identifier == "end") ? TokenType.End :
+                (identifier == "for") ? TokenType.For :
+                (identifier == "to") ? TokenType.To :
+                (identifier == "exit") ? TokenType.Exit :
+                (identifier == "and") ? TokenType.And :
+                (identifier == "or") ? TokenType.Or :
+                (identifier == "not") ? TokenType.Not :
+                TokenType.Identifer;
+            return new Token() { Type = type, Location = location, Text = identifier };
         }
 
         Token ReadNumber()
