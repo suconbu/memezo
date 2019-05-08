@@ -201,7 +201,7 @@ namespace Suconbu.Scripting.Memezo
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
 
             this.lexer.ReadToken();
-            Value fromValue = this.Expr();
+            var fromValue = this.Expr();
             if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
                 this.Vars[name] = fromValue;
@@ -542,7 +542,7 @@ namespace Suconbu.Scripting.Memezo
     {
         public ErrorType ErrorType { get; private set; }
 
-        public InternalErrorException(ErrorType type, string message) : base($"{type}:{message}")
+        public InternalErrorException(ErrorType type, string message = null) : base($"{type}:{message}")
         {
             this.ErrorType = type;
         }
@@ -565,44 +565,44 @@ namespace Suconbu.Scripting.Memezo
 
         public static Value Str(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             return new Value(args[0].ToString());
         }
 
         public static Value Int(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             var value = args[0];
             return
                 (value.Type == ValueType.String) ? new Value(long.Parse(value.String)) :
                 (value.Type == ValueType.Number) ? new Value((long)value.Number) :
-                throw new ArgumentException("InvalidDataType");
+                throw new InternalErrorException(ErrorType.InvalidDataType);
         }
 
         public static Value Float(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
+            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             var value = args[0];
             return
                 (value.Type == ValueType.String) ? new Value(double.Parse(value.String)) :
                 (value.Type == ValueType.Number) ? new Value(value.Number) :
-                throw new ArgumentException("InvalidDataType");
+                throw new InternalErrorException(ErrorType.InvalidDataType);
         }
 
         public static Value Abs(List<Value> args)
         {
-            if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
-            if(args[0].Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
+            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
+            if(args[0].Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
             return new Value(Math.Abs(args[0].Number));
         }
 
         public static Value Min(List<Value> args)
         {
-            if (args.Count < 2) throw new ArgumentException("InvalidNumberOfArguments");
+            if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             var min = double.MaxValue;
             foreach (var arg in args)
             {
-                if (arg.Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
+                if (arg.Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
                 min = Math.Min(min, arg.Number);
             }
             return new Value(min);
@@ -610,11 +610,11 @@ namespace Suconbu.Scripting.Memezo
 
         public static Value Max(List<Value> args)
         {
-            if (args.Count < 2) throw new ArgumentException("InvalidNumberOfArguments");
+            if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             var max = double.MinValue;
             foreach (var arg in args)
             {
-                if (arg.Type != ValueType.Number) throw new ArgumentException("InvalidDataType");
+                if (arg.Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
                 max = Math.Max(max, arg.Number);
             }
             return new Value(max);
@@ -858,9 +858,6 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    /// <summary>
-    /// The location in source code.
-    /// </summary>
     struct Location
     {
         public int CharIndex { get; set; }
