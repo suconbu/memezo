@@ -1,4 +1,4 @@
-# NOK:MissingToken: End
+# NOK:MissingToken:End
 if 1:
 	if 0:
 	else:

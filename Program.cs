@@ -16,6 +16,7 @@ namespace Suconbu.Scripting
         {
             var interpreter = new Memezo.Interpreter();
             interpreter.Output += (s, e) => Console.WriteLine(e);
+            interpreter.ErrorOccurred += (s,e) => Console.WriteLine($"ERROR: {e}");
 
             var output = new StringBuilder();
             var deferred = false;
@@ -48,10 +49,7 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    if (!interpreter.InteractiveRun(line, out deferred))
-                    {
-                        Console.WriteLine(interpreter.Error);
-                    }
+                    interpreter.InteractiveRun(line, out deferred);
                 }
             }
         }
@@ -78,8 +76,6 @@ namespace Suconbu.Scripting
                 var output = new StringBuilder();
                 interpreter.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
                 interpreter.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
-                interpreter.Functions["debug"] = (a) => { Debug.Write(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
-                interpreter.Functions["debugline"] = (a) => { Debug.WriteLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
 
                 var code = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
@@ -88,19 +84,19 @@ namespace Suconbu.Scripting
 
                 if (expectResult && !result)
                     // 期待通り成功せず
-                    Console.Write($"NOK: {interpreter.Error}.");
+                    Console.Write($"NOK: {interpreter.LastError}.");
                 else if (expectResult && result && expectOutput != null && output.ToString() != expectOutput)
                     // 期待通り成功したけど出力が違う
                     Console.Write($"NOK: Expected '{expectOutput}', but output was '{output}'.");
                 else if (!expectResult && result)
                     // 期待通り失敗せず
                     Console.Write($"NOK: Expected '{expectOutput}', but not occurred.");
-                else if (!expectResult && !result && expectOutput != null && !interpreter.Error.Message.StartsWith(expectOutput))
+                else if (!expectResult && !result && expectOutput != null && !interpreter.LastError.Message.StartsWith(expectOutput))
                     // 期待通り失敗したけどエラーが違う
-                    Console.Write($"NOK: Expected '{expectOutput}', but {interpreter.Error} occurred.");
+                    Console.Write($"NOK: Expected '{expectOutput}', but {interpreter.LastError} occurred.");
                 else
                 {
-                    Console.Write($"OK: {interpreter.Error}");
+                    Console.Write($"OK: {interpreter.LastError}");
                     ++okCount;
                 }
                 Console.WriteLine($" --- {elapsed:#,0}ms statements:{interpreter.TotalStatementCount} tokens:{interpreter.TotalTokenCount} outputlength:{output.Length}");

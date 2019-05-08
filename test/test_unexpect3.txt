@@ -1,4 +1,4 @@
-# NOK:UnexpectedToken: 'else'
+# NOK:UnexpectedToken:'else'
 if else 1:
 	a = 1
 end
