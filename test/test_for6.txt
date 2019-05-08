@@ -1,0 +1,4 @@
+# NOK:UnexpectedToken:Break
+if 1:
+	break
+end

@@ -117,6 +117,8 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Else) this.OnAflterIf();
             else if (type == TokenType.For) this.OnFor();
             else if (type == TokenType.End) this.OnEnd();
+            else if (type == TokenType.Continue) this.OnContinue();
+            else if (type == TokenType.Break) this.OnBreak();
             else if (type == TokenType.Exit) this.OnExit();
             else if (type == TokenType.Eof) this.OnEof();
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
@@ -244,6 +246,44 @@ namespace Suconbu.Scripting.Memezo
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{clause.Token}");
 
             this.lexer.ReadToken();
+        }
+
+        void OnContinue()
+        {
+            while (this.clauses.Count > 0)
+            {
+                var clause = this.clauses.Peek();
+                if(clause.Token == TokenType.For)
+                {
+                    this.EndFor(clause);
+                    this.lexer.ReadToken();
+                    return;
+                }
+                this.clauses.Pop();
+            }
+            throw new InternalErrorException(ErrorType.UnexpectedToken, $"{TokenType.Continue}");
+        }
+
+        void OnBreak()
+        {
+            int counter = 0;
+            while (this.clauses.Count > 0)
+            {
+                var clause = this.clauses.Pop();
+                if (clause.Token == TokenType.For)
+                {
+                    while (counter >= 0)
+                    {
+                        this.lexer.ReadToken();
+                        if (this.lexer.Token.HasClause()) counter++;
+                        else if (this.lexer.Token.Type == TokenType.End) counter--;
+                    }
+                    this.lexer.ReadToken();
+                    return;
+                }
+                counter++;
+            }
+            throw new InternalErrorException(ErrorType.UnexpectedToken, $"{TokenType.Break}");
         }
 
         void EndIf(Clause clause)
@@ -583,7 +623,7 @@ namespace Suconbu.Scripting.Memezo
 
     struct Token
     {
-        public static Token None = new Token() { Type = TokenType.None };
+        public static Token None = new Token() { Type = TokenType.None, Text = string.Empty };
 
         public TokenType Type { get; internal set; }
         public Location Location { get; internal set; }
@@ -692,6 +732,8 @@ namespace Suconbu.Scripting.Memezo
                 (identifier == "end") ? TokenType.End :
                 (identifier == "for") ? TokenType.For :
                 (identifier == "to") ? TokenType.To :
+                (identifier == "continue") ? TokenType.Continue :
+                (identifier == "break") ? TokenType.Break :
                 (identifier == "exit") ? TokenType.Exit :
                 (identifier == "and") ? TokenType.And :
                 (identifier == "or") ? TokenType.Or :
@@ -847,7 +889,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Statement keyword
-        If, Elif, Else, For, To, End, Exit,
+        If, Elif, Else, For, To, End, Continue, Break, Exit,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,

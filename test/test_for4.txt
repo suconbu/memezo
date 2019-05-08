@@ -1,0 +1,16 @@
+# OK:0244
+for i = 0 to 10:
+	if 1:
+		1
+	end
+	if i % 2 == 1: continue end
+	print(i)
+	if i == 4: break end
+	if 1:
+		1
+		for j = 0 to 10:
+			j
+		end
+	end
+end
+print(i)

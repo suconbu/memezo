@@ -1,0 +1,4 @@
+# NOK:UnexpectedToken:Continue
+if 1:
+	continue
+end
