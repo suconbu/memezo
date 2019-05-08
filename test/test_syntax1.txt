@@ -1,7 +1,7 @@
 # OK:	\"_a,1b,c,123,h,2b,e,h,3b,e,f,4b,e,h,5b,d,g,i,
 
 # comment
-p 10
+10
 count = 1
 max(20,30)#comment
 count = min(5 , 100)#comment

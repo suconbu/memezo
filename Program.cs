@@ -15,7 +15,7 @@ namespace Suconbu.Scripting
         static void Main(string[] args)
         {
             var interpreter = new Memezo.Interpreter();
-            interpreter.PrintValue += (s, e) => Console.WriteLine(e);
+            interpreter.Output += (s, e) => Console.WriteLine(e);
 
             var output = new StringBuilder();
             while (true)

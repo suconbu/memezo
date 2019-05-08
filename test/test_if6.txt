@@ -1,0 +1,15 @@
+# OK:bcefgAD
+if 0: print("a") end
+if 1: print("b") end
+if -1: print("c") end
+if "": print("d") end
+if "0": print("e") end
+if "1": print("f") end
+if "-1": print("g") end
+if not 0: print("A") end
+if not 1: print("B") end
+if not -1: print("C") end
+if not "": print("D") end
+if not "0": print("E") end
+if not "1": print("F") end
+if not "-1": print("G") end

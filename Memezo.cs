@@ -5,40 +5,42 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Suconbu.Scripting.Memezo
 {
     public enum ValueType { Number, String }
+    public delegate Value Function(List<Value> args);
 
     public class Interpreter
     {
-        public delegate Value Function(List<Value> args);
-        public event EventHandler<string> PrintValue = delegate { };
+        public event EventHandler<string> Output = delegate { };
 
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
         public int DeferedClauseCount { get; private set; }
         public int TotalStatementCount { get; private set; }
-        public int TotalTokenCount { get { return this.lexer.TotalTokenCount; } }
+        public int TotalTokenCount { get; private set; }
 
         Lexer lexer;
         Location statementLocation;
         bool exit;
-        Value returnValue;
+        Value returnValue = Value.Zero;
+        StringBuilder interactiveInput = new StringBuilder();
 
         readonly Stack<Clause> clauses = new Stack<Clause>();
-        readonly Dictionary<Token, int> operatorProcs = new Dictionary<Token, int>()
+        readonly Dictionary<TokenType, int> operatorPrecs = new Dictionary<TokenType, int>()
         {
-            { Token.DoubleAsterisk, 0 },
-            { Token.Asterisk, 1 }, {Token.Slash, 1 }, {Token.DoubleSlash, 1 }, {Token.Percent, 1 },
-            { Token.Plus, 2 }, { Token.Minus, 2 },
-            { Token.Equal, 3 }, { Token.NotEqual, 3 }, { Token.Less, 3 }, { Token.More, 3 }, { Token.LessEqual, 3 },  { Token.MoreEqual, 3 },
-            { Token.Not, 4 },
-            { Token.And, 5 },
-            { Token.Or, 6 }
+            { TokenType.Exponent, 0 },
+            { TokenType.Multiply, 1 }, {TokenType.Division, 1 }, {TokenType.FloorDivision, 1 }, {TokenType.Remainder, 1 },
+            { TokenType.Plus, 2 }, { TokenType.Minus, 2 },
+            { TokenType.Equal, 3 }, { TokenType.NotEqual, 3 }, { TokenType.Less, 3 }, { TokenType.Greater, 3 }, { TokenType.LessEqual, 3 },  { TokenType.GreaterEqual, 3 },
+            { TokenType.Not, 4 },
+            { TokenType.And, 5 },
+            { TokenType.Or, 6 }
         };
 
         public Interpreter()
@@ -51,33 +53,25 @@ namespace Suconbu.Scripting.Memezo
             var result = false;
             try
             {
-                this.Initialize();
                 this.lexer = new Lexer(input);
+                this.lexer.TokenRead += (s, e) => this.TotalTokenCount++;
                 this.lexer.ReadToken();
                 while (!this.exit) this.Statement();
                 result = true;
             }
             catch (Exception ex)
             {
-                this.Error = new ErrorInfo(ex.Message, this.lexer.TokenLocation);
+                this.Error = new ErrorInfo(ex.Message, this.lexer.Token.Location);
             }
             return result;
         }
 
         public bool RunAsInteractive(string input)
         {
-            if (this.lexer == null)
-            {
-                this.Initialize();
-                this.lexer = new Lexer(input + "\n");
-            }
-            else
-            {
-                this.lexer.AddSource(input + "\n");
-            }
-
-            if (Regex.IsMatch(input, @"\b(if|for)\b.*:")) this.DeferedClauseCount++;
-            else if (input.Trim() == "end") this.DeferedClauseCount--;
+            this.interactiveInput.AppendLine(input);
+            var tokens = Lexer.SplitTokens(input);
+            this.DeferedClauseCount += tokens.Count(t => t.HasClause());
+            this.DeferedClauseCount -= tokens.Count(t => t.Type == TokenType.End);
             if (this.DeferedClauseCount > 0) return true;
 
             var clauseCount = this.clauses.Count;
@@ -85,91 +79,80 @@ namespace Suconbu.Scripting.Memezo
             try
             {
                 this.exit = false;
+                this.lexer = new Lexer(this.interactiveInput.ToString());
+                this.lexer.TokenRead += (s, e) => this.TotalTokenCount++;
                 this.lexer.ReadToken();
                 while (!this.exit) this.Statement();
                 result = true;
             }
             catch (Exception ex)
             {
-                this.Error = new ErrorInfo(ex.Message, this.lexer.TokenLocation);
+                this.Error = new ErrorInfo(ex.Message, this.lexer.Token.Location);
                 while (this.clauses.Count > clauseCount) this.clauses.Pop();
             }
-            // Consider to case of return in the middle.
-            while (this.lexer.ReadToken() != Token.EOF) ;
+            this.interactiveInput.Clear();
             return result;
-        }
-
-        void Initialize()
-        {
-            this.returnValue = Value.Zero;
-            this.exit = false;
-            this.TotalStatementCount = 0;
-            this.clauses.Clear();
         }
 
         void Statement()
         {
             this.TotalStatementCount++;
-            while (this.lexer.Token == Token.Unkown || this.lexer.Token == Token.NewLine)
+            while (this.lexer.Token.Type == TokenType.Unkown || this.lexer.Token.Type == TokenType.NewLine)
                 this.lexer.ReadToken();
-            var keyword = this.lexer.Token;
-            this.statementLocation = this.lexer.TokenLocation;
-            switch (keyword)
+            this.statementLocation = this.lexer.Token.Location;
+            switch (this.lexer.Token.Type)
             {
-                case Token.Print: this.Print(); break;
-                case Token.If: this.If(); break;
-                case Token.Elif: this.IfSkip(); break;
-                case Token.Else: this.IfSkip(); break;
-                case Token.For: this.For(); break;
-                case Token.End: this.End(); break;
-                case Token.Return: this.Return(); break;
-                case Token.Identifer: this.Identifier(); break;
-                case Token.EOF: this.Eof(); break;
-                default: this.RiseError($"UnexpectedToken: {keyword}"); break;
+                case TokenType.If: this.If(); break;
+                case TokenType.Elif: this.IfSkip(); break;
+                case TokenType.Else: this.IfSkip(); break;
+                case TokenType.For: this.For(); break;
+                case TokenType.End: this.End(); break;
+                case TokenType.Return: this.Return(); break;
+                case TokenType.Eof: this.Eof(); break;
+                default:
+                    if(this.lexer.Token.Type == TokenType.Identifer && this.lexer.NextToken.Type == TokenType.Assign)
+                        this.Assign();
+                    else
+                        this.Output(this, this.Expr().ToQuotedString());
+                    break;
             }
-        }
-
-        void Print()
-        {
-            this.lexer.ReadToken();
-            this.PrintValue(this, this.Expr().ToString());
         }
 
         void If()
         {
         Start:
             bool result = true;
-            if (this.lexer.Token == Token.If || this.lexer.Token == Token.Elif)
+            if (this.lexer.Token.Type == TokenType.If || this.lexer.Token.Type == TokenType.Elif)
             {
-                if (this.lexer.Token == Token.If)
-                    this.clauses.Push(new Clause(Token.If, this.statementLocation, null));
+                if (this.lexer.Token.Type == TokenType.If)
+                    this.clauses.Push(new Clause(TokenType.If, this.statementLocation, null));
                 this.lexer.ReadToken();
-                result = (this.Expr().BinaryOperation(Value.Zero, Token.Equal).Number == 0);
+                result = this.Expr().Boolean();
             }
-            else if (this.lexer.Token == Token.Else)
+            else if (this.lexer.Token.Type == TokenType.Else)
             {
                 this.lexer.ReadToken();
             }
             else
                 this.RiseError($"UnexpectedToken: {this.lexer.Token}");
-            this.VerifyToken(this.lexer.Token, Token.Colon);
-            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: {this.lexer.Token} {result}");
+            this.VerifyToken(this.lexer.Token, TokenType.Colon);
+            this.DebugLog($"{this.lexer.Token.Location.Line + 1}: {this.lexer.Token} {result}");
 
             if (!result)
             {
                 // Condition is not satisfied.
                 int count = 0;
-                while (this.lexer.ReadToken() != Token.EOF)
+                while (this.lexer.ReadToken().Type != TokenType.Eof)
                 {
-                    if (this.HasClause(this.lexer.Token))
+                    if (this.lexer.Token.HasClause())
                     {
                         count++;
                     }
-                    else if (this.lexer.Token == Token.Elif || this.lexer.Token == Token.Else)
+                    else if (this.lexer.Token.Type == TokenType.Elif || this.lexer.Token.Type == TokenType.Else)
                     {
                         if (count == 0) goto Start;
                     }
-                    else if (this.lexer.Token == Token.End)
+                    else if (this.lexer.Token.Type == TokenType.End)
                     {
                         if (count-- == 0) break;
                     }
@@ -184,16 +167,16 @@ namespace Suconbu.Scripting.Memezo
         void IfSkip()
         {
             // After if clause executed.
-            if (this.clauses.Count <= 0 || this.clauses.Peek().Token != Token.If)
+            if (this.clauses.Count <= 0 || this.clauses.Peek().Token != TokenType.If)
                 this.RiseError($"UnexpectedToken: {this.lexer.Token}");
             int count = 0;
-            while (this.lexer.ReadToken() != Token.EOF)
+            while (this.lexer.ReadToken().Type != TokenType.Eof)
             {
-                if (this.HasClause(this.lexer.Token))
+                if (this.lexer.Token.HasClause())
                 {
                     count++;
                 }
-                else if (this.lexer.Token == Token.End)
+                else if (this.lexer.Token.Type == TokenType.End)
                 {
                     if (count-- == 0) break;
                 }
@@ -203,36 +186,36 @@ namespace Suconbu.Scripting.Memezo
 
         void For()
         {
-            this.VerifyToken(this.lexer.ReadToken(), Token.Identifer);
-            var name = this.lexer.Identifer;
+            this.VerifyToken(this.lexer.ReadToken(), TokenType.Identifer);
+            var name = this.lexer.Token.Text;
 
-            this.VerifyToken(this.lexer.ReadToken(), Token.Assign);
+            this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
 
             this.lexer.ReadToken();
             Value fromValue = this.Expr();
             if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
                 this.Vars[name] = fromValue;
-                this.clauses.Push(new Clause(Token.For, this.statementLocation, name));
+                this.clauses.Push(new Clause(TokenType.For, this.statementLocation, name));
             }
 
-            this.VerifyToken(this.lexer.Token, Token.To);
+            this.VerifyToken(this.lexer.Token, TokenType.To);
 
             this.lexer.ReadToken();
             var toValue = this.Expr();
 
-            this.VerifyToken(this.lexer.Token, Token.Colon);
+            this.VerifyToken(this.lexer.Token, TokenType.Colon);
 
-            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: For {this.Vars[name]} to {toValue}");
+            this.DebugLog($"{this.lexer.Token.Location.Line + 1}: For {this.Vars[name]} to {toValue}");
 
-            if (this.Vars[name].BinaryOperation(toValue, Token.More).Number == 1)
+            if (this.Vars[name].BinaryOperation(toValue, TokenType.Greater).Number == 1)
             {
                 int counter = 0;
                 while (counter >= 0)
                 {
                     this.lexer.ReadToken();
-                    if (this.HasClause(this.lexer.Token)) counter++;
-                    else if (this.lexer.Token == Token.End) counter--;
+                    if (this.lexer.Token.HasClause()) counter++;
+                    else if (this.lexer.Token.Type == TokenType.End) counter--;
                 }
                 this.clauses.Pop();
             }
@@ -241,12 +224,12 @@ namespace Suconbu.Scripting.Memezo
 
         void End()
         {
-            if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {Token.End}");
-            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: End");
+            if (this.clauses.Count <= 0) this.RiseError($"UnexpectedToken: {TokenType.End}");
+            this.DebugLog($"{this.lexer.Token.Location.Line + 1}: End");
             var clause = this.clauses.Peek();
-            if (clause.Token == Token.If)
+            if (clause.Token == TokenType.If)
                 this.EndIf(clause);
-            else if (clause.Token == Token.For)
+            else if (clause.Token == TokenType.For)
                 this.EndFor(clause);
             else
                 this.RiseError($"UnexpectedClauseToken: {clause.Token}");
@@ -260,52 +243,31 @@ namespace Suconbu.Scripting.Memezo
 
         void EndFor(Clause clause)
         {
-            this.Vars[clause.Var] = this.Vars[clause.Var].BinaryOperation(new Value(1), Token.Plus);
+            this.Vars[clause.Var] = this.Vars[clause.Var].BinaryOperation(new Value(1), TokenType.Plus);
             this.lexer.Move(clause.Location);
         }
 
         void Return()
         {
-            this.lexer.ReadToken();
-            if (this.lexer.Token != Token.NewLine && this.lexer.Token != Token.EOF)
+            var token = this.lexer.ReadToken();
+            if (token.Type != TokenType.Eof && token.Type != TokenType.NewLine)
                 this.returnValue = this.Expr();
             this.exit = true;
         }
 
-        void Identifier()
-        {
-            var token = this.lexer.ReadToken();
-            if (token == Token.Assign) this.Assign();
-            else if (token == Token.LeftParen) this.Invoke();
-            else this.RiseError($"UnexpectedIdentifier: {this.lexer.Identifer}");//this.Expr();
-        }
-
         void Eof()
         {
-            if (this.clauses.Count > 0) this.RiseError($"MissingToken: {Token.End}");
+            if (this.clauses.Count > 0) this.RiseError($"MissingToken: {TokenType.End}");
             this.exit = true;
         }
 
         void Assign()
         {
-            // Current:Token.Assign
-            var name = this.lexer.Identifer;
+            var name = this.lexer.Token.Text;
+            this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
             this.lexer.ReadToken();
             this.Vars[name] = this.Expr();
-            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: Assign {name}={this.Vars[name].ToString()}");
-        }
-
-        void Invoke()
-        {
-            // Current:Token.LParen
-            var name = this.lexer.Identifer;
-            var args = this.ReadArguments();
-            this.lexer.ReadToken();
-            if (this.Functions.TryGetValue(name, out var function))
-                function(args);
-            else
-                this.RiseError($"UndeclaredIdentifier: {name}");
-            this.DebugLog($"{this.lexer.TokenLocation.Line + 1}: Invoke {name}({string.Join(",",args.ConvertAll(v=>v.ToString()))})");
+            this.DebugLog($"{this.lexer.Token.Location.Line + 1}: Assign {name}={this.Vars[name].ToString()}");
         }
 
         Value Expr(int lowestPrec = int.MaxValue - 1)
@@ -314,14 +276,14 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
             while (true)
             {
-                if (!this.IsOperator(this.lexer.Token)) break;
-                if (!this.operatorProcs.TryGetValue(this.lexer.Token, out var prec)) prec = int.MaxValue;
+                if (!this.lexer.Token.IsOperator()) break;
+                if (!this.operatorPrecs.TryGetValue(this.lexer.Token.Type, out var prec)) prec = int.MaxValue;
                 if (prec >= lowestPrec) break;
 
-                var op = this.lexer.Token;
+                var type = this.lexer.Token.Type;
                 this.lexer.ReadToken();
                 var rhs = this.Expr(prec);
-                lhs = lhs.BinaryOperation(rhs, op);
+                lhs = lhs.BinaryOperation(rhs, type);
             }
 
             return lhs;
@@ -331,44 +293,45 @@ namespace Suconbu.Scripting.Memezo
         {
             var primary = Value.Zero;
 
-            if (this.lexer.Token == Token.Value)
+            if (this.lexer.Token.Type == TokenType.Value)
             {
-                primary = this.lexer.Value;
+                primary = this.lexer.Token.Value;
             }
-            else if (this.lexer.Token == Token.Identifer)
+            else if (this.lexer.Token.Type == TokenType.Plus || this.lexer.Token.Type == TokenType.Minus)
             {
-                if (this.Vars.ContainsKey(this.lexer.Identifer))
+                var type = this.lexer.Token.Type;
+                this.lexer.ReadToken();
+                primary = Value.Zero.BinaryOperation(this.Primary(), type); // we dont realy have a unary operators
+            }
+            else if (this.lexer.Token.Type == TokenType.Not)
+            {
+                this.lexer.ReadToken();
+                primary = new Value(this.Primary().Boolean() ? 0.0 : 1.0);
+            }
+            else if (this.lexer.Token.Type == TokenType.LeftParen)
+            {
+                this.lexer.ReadToken();
+                primary = this.Expr();
+                this.VerifyToken(this.lexer.Token, TokenType.RightParen);
+            }
+            else if (this.lexer.Token.Type == TokenType.Identifer)
+            {
+                var identifier = this.lexer.Token.Text;
+                if (this.Vars.ContainsKey(identifier))
                 {
-                    primary = this.Vars[this.lexer.Identifer];
+                    primary = this.Vars[identifier];
                 }
-                else if (this.Functions.ContainsKey(this.lexer.Identifer))
+                else if (this.Functions.ContainsKey(identifier))
                 {
-                    var name = this.lexer.Identifer;
-                    this.VerifyToken(this.lexer.ReadToken(), Token.LeftParen);
+                    var name = identifier;
+                    this.VerifyToken(this.lexer.ReadToken(), TokenType.LeftParen);
                     var args = this.ReadArguments();
                     primary = this.Functions[name](args);
                 }
                 else
                 {
-                    this.RiseError($"UndeclaredIdentifier: {this.lexer.Identifer}");
+                    this.RiseError($"UndeclaredIdentifier: {identifier}");
                 }
-            }
-            else if (this.lexer.Token == Token.LeftParen)
-            {
-                this.lexer.ReadToken();
-                primary = this.Expr();
-                this.VerifyToken(this.lexer.Token, Token.RightParen);
-            }
-            else if (this.lexer.Token == Token.Plus || this.lexer.Token == Token.Minus)
-            {
-                var op = this.lexer.Token;
-                this.lexer.ReadToken();
-                primary = Value.Zero.BinaryOperation(this.Primary(), op); // we dont realy have a unary operators
-            }
-            else if (this.lexer.Token == Token.Not)
-            {
-                this.lexer.ReadToken();
-                primary = Value.Zero.BinaryOperation(this.Primary(), Token.Equal);
             }
             else
             {
@@ -378,9 +341,9 @@ namespace Suconbu.Scripting.Memezo
             return primary;
         }
 
-        void VerifyToken(Token token, Token expectedToken)
+        void VerifyToken(Token token, TokenType expectedType)
         {
-            if (token != expectedToken) this.RiseError($"MissingToken: {expectedToken}");
+            if (token.Type != expectedType) this.RiseError($"MissingToken: {expectedType}");
         }
 
         List<Value> ReadArguments()
@@ -388,24 +351,14 @@ namespace Suconbu.Scripting.Memezo
             var args = new List<Value>();
             while (true)
             {
-                if (this.lexer.ReadToken() != Token.RightParen)
+                if (this.lexer.ReadToken().Type != TokenType.RightParen)
                 {
                     args.Add(this.Expr());
-                    if (this.lexer.Token == Token.Comma) continue;
+                    if (this.lexer.Token.Type == TokenType.Comma) continue;
                 }
                 break;
             }
             return args;
-        }
-
-        bool HasClause(Token token)
-        {
-            return this.lexer.Token == Token.If || this.lexer.Token == Token.For;
-        }
-
-        bool IsOperator(Token token)
-        {
-            return Token.OperatorBegin <= token && token <= Token.OperatorEnd;
         }
 
         void DebugLog(string s)
@@ -438,7 +391,6 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    // Immutable
     public struct Value
     {
         public static readonly Value Zero = new Value(0);
@@ -464,49 +416,80 @@ namespace Suconbu.Scripting.Memezo
             return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
         }
 
-        internal Value BinaryOperation(Value b, Token token)
+        public string ToQuotedString()
+        {
+            return (this.Type == ValueType.Number) ? this.Number.ToString() : $"'{this.String}'";
+        }
+
+        internal bool Boolean()
+        {
+            return (this.Type == ValueType.Number) ? (this.Number != 0.0) : (this.String != string.Empty);
+        }
+
+        internal Value BinaryOperation(Value b, TokenType token)
         {
             var a = this;
 
-            if (a.Type != b.Type) throw new Exception($"Mismatched data types: {a.Type}, {b.Type}");
+            if (token == TokenType.Multiply)
+            {
+                return
+                    (a.Type == ValueType.Number && b.Type == ValueType.Number) ?
+                        new Value(a.Number * b.Number) :
+                    (a.Type == ValueType.String && b.Type == ValueType.Number) ?
+                        new Value((new StringBuilder().Insert(0, a.String, (int)Math.Max(b.Number, 0.0))).ToString()) :
+                    (a.Type == ValueType.Number && b.Type == ValueType.String) ?
+                        new Value((new StringBuilder().Insert(0, b.String, (int)Math.Max(a.Number, 0.0))).ToString()) :
+                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+            }
 
-            if (token == Token.Plus)
+            if (a.Type != b.Type)
             {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number + b.Number) :
-                    new Value(a.String + b.String);
+                if (a.Type == ValueType.Number && b.Type == ValueType.String)
+                    a = new Value(a.ToString());
+                else if (a.Type == ValueType.String && b.Type == ValueType.Number)
+                    b = new Value(b.ToString());
+                else
+                    throw new Exception($"MismatchedDataTypes: {a.Type} x {b.Type}");
             }
-            else if (token == Token.Equal)
+
+            if (token == TokenType.Plus)
             {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number == b.Number ? 1 : 0) :
-                    new Value(a.String == b.String ? 1 : 0);
+                return
+                    (a.Type == ValueType.Number) ? new Value(a.Number + b.Number) :
+                    (a.Type == ValueType.String) ? new Value(a.String + b.String) :
+                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
             }
-            else if (token == Token.NotEqual)
+            else if (token == TokenType.Equal)
             {
-                return (a.Type == ValueType.Number) ?
-                    new Value(a.Number == b.Number ? 0 : 1) :
-                    new Value(a.String == b.String ? 0 : 1);
+                return
+                    (a.Type == ValueType.Number) ? new Value(a.Number == b.Number ? 1 : 0) :
+                    (a.Type == ValueType.String) ? new Value(a.String == b.String ? 1 : 0) :
+                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
+            }
+            else if (token == TokenType.NotEqual)
+            {
+                return
+                    (a.Type == ValueType.Number) ? new Value(a.Number != b.Number ? 1 : 0) :
+                    (a.Type == ValueType.String) ? new Value(a.String != b.String ? 1 : 0) :
+                    throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
             }
             else
             {
-                if (a.Type == ValueType.String)
-                    throw new Exception($"NotSupportedOperatorForString: {token}");
+                if (a.Type != ValueType.Number) throw new Exception($"NotSupportedOperation: {token} for {a.Type}");
 
                 switch (token)
                 {
-                    case Token.Minus: return new Value(a.Number - b.Number);
-                    case Token.Asterisk: return new Value(a.Number * b.Number);
-                    case Token.Slash: return new Value(a.Number / b.Number);
-                    case Token.DoubleSlash: return new Value(Math.Floor(a.Number / b.Number));
-                    case Token.Percent: return new Value(a.Number % b.Number);
-                    case Token.DoubleAsterisk: return new Value(Math.Pow(a.Number, b.Number));
-                    case Token.Less: return new Value(a.Number < b.Number ? 1 : 0);
-                    case Token.More: return new Value(a.Number > b.Number ? 1 : 0);
-                    case Token.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
-                    case Token.MoreEqual: return new Value(a.Number >= b.Number ? 1 : 0);
-                    case Token.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
-                    case Token.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
+                    case TokenType.Minus: return new Value(a.Number - b.Number);
+                    case TokenType.Division: return new Value(a.Number / b.Number);
+                    case TokenType.FloorDivision: return new Value(Math.Floor(a.Number / b.Number));
+                    case TokenType.Remainder: return new Value(a.Number % b.Number);
+                    case TokenType.Exponent: return new Value(Math.Pow(a.Number, b.Number));
+                    case TokenType.Less: return new Value(a.Number < b.Number ? 1 : 0);
+                    case TokenType.Greater: return new Value(a.Number > b.Number ? 1 : 0);
+                    case TokenType.LessEqual: return new Value(a.Number <= b.Number ? 1 : 0);
+                    case TokenType.GreaterEqual: return new Value(a.Number >= b.Number ? 1 : 0);
+                    case TokenType.And: return new Value(a.Number != 0.0 && b.Number != 0.0 ? 1 : 0);
+                    case TokenType.Or: return new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0);
                 }
             }
             throw new Exception($"UnknownBinaryOperator: {token}");
@@ -535,14 +518,20 @@ namespace Suconbu.Scripting.Memezo
         {
             if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
             var value = args[0];
-            return (value.Type == ValueType.String) ? new Value(long.Parse(value.String)) : new Value((long)value.Number);
+            return
+                (value.Type == ValueType.String) ? new Value(long.Parse(value.String)) :
+                (value.Type == ValueType.Number) ? new Value((long)value.Number) :
+                throw new ArgumentException("InvalidDataType");
         }
 
         public static Value Float(List<Value> args)
         {
             if (args.Count != 1) throw new ArgumentException("InvalidNumberOfArguments");
             var value = args[0];
-            return (value.Type == ValueType.String) ? new Value(double.Parse(value.String)) : new Value(value.Number);
+            return
+                (value.Type == ValueType.String) ? new Value(double.Parse(value.String)) :
+                (value.Type == ValueType.Number) ? new Value(value.Number) :
+                throw new ArgumentException("InvalidDataType");
         }
 
         public static Value Abs(List<Value> args)
@@ -577,16 +566,37 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    /// <summary>
-    /// Lexical analyzyer
-    /// </summary>
+    struct Token
+    {
+        public static Token None = new Token() { Type = TokenType.None };
+
+        public TokenType Type { get; internal set; }
+        public Location Location { get; internal set; }
+        public string Text { get; internal set; }
+        public Value Value { get; internal set; }
+
+        public bool HasClause()
+        {
+            return this.Type == TokenType.If || this.Type == TokenType.For;
+        }
+
+        public bool IsOperator()
+        {
+            return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd;
+        }
+
+        public override string ToString()
+        {
+            return $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
+        }
+    }
+
     class Lexer
     {
+        public event EventHandler<Token> TokenRead = delegate { };
+
         public Token Token { get; private set; }
-        public Location TokenLocation { get; private set; }
-        public string Identifer { get; private set; }
-        public Value Value { get; private set; }
-        public int TotalTokenCount { get; private set; }
+        public Token NextToken { get; private set; }
 
         string source;
         Location currentLocation;
@@ -601,10 +611,13 @@ namespace Suconbu.Scripting.Memezo
 
         Lexer() { }
 
-        public void AddSource(string input)
+        public static List<Token> SplitTokens(string input)
         {
-            this.source += input;
-            this.Move(this.currentLocation);
+            var tokens = new List<Token>();
+            var lexer = new Lexer(input);
+            while (lexer.ReadToken().Type != TokenType.Eof)
+                tokens.Add(lexer.Token);
+            return tokens;
         }
 
         public void Move(Location location)
@@ -612,126 +625,141 @@ namespace Suconbu.Scripting.Memezo
             this.currentLocation = location;
             this.currentChar = this.GetCharAt(location.CharIndex);
             this.nextChar = this.GetCharAt(location.CharIndex + 1);
+            this.Token = Token.None;
+            this.NextToken = Token.None;
         }
 
         public Token ReadToken()
         {
+            if (this.NextToken.Type == TokenType.None)
+                this.NextToken = this.ReadTokenInternal();
+            this.Token = this.NextToken;
+            this.NextToken = this.ReadTokenInternal();
+            return this.Token;
+        }
+
+        Token ReadTokenInternal()
+        {
             while (this.currentChar != '\n' && char.IsWhiteSpace(this.currentChar))
                 this.ReadChar();
 
-            this.TokenLocation = this.currentLocation;
-
-            var token = Token.Unkown;
-            if (this.currentChar == (char)0) token = Token.EOF;
+            Token token;
+            if (this.currentChar == (char)0) token = new Token() { Type = TokenType.Eof };
             else if (this.currentChar == '#') token = this.ReadComment();
             else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadIdentifier();
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
             else if (this.IsStringEnclosure(this.currentChar)) token = this.ReadString(this.currentChar);
             else token = this.ReadOperator();
-            this.Token = token;
-            this.TotalTokenCount++;
+
+            this.TokenRead(this, token);
             return token;
         }
 
         Token ReadComment()
         {
+            var location = this.currentLocation;
             this.ReadChar();
             while (this.currentChar != '\n' && this.currentChar != (char)0) this.ReadChar();
-            var token = (this.currentChar == '\n') ? Token.NewLine : Token.EOF;
+            var type = (this.currentChar == '\n') ? TokenType.NewLine : TokenType.Eof;
             this.ReadChar();
-            return token;
+            return new Token() { Type = type, Location = location };
         }
 
         Token ReadIdentifier()
         {
-            this.Identifer = this.currentChar.ToString();
-            while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) this.Identifer += this.currentChar;
-            var token = Token.Identifer;
-            switch (this.Identifer)
+            var location = this.currentLocation;
+            var text = this.currentChar.ToString();
+            while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) text += this.currentChar;
+            TokenType type;
+            switch (text)
             {
-                case "p": token = Token.Print; break;
-                case "if": token = Token.If; break;
-                case "elif": token = Token.Elif; break;
-                case "else": token = Token.Else; break;
-                case "end": token = Token.End; break;
-                case "for": token = Token.For; break;
-                case "to": token = Token.To; break;
-                case "return": token = Token.Return; break;
-                case "and": token = Token.And; break;
-                case "or": token = Token.Or; break;
-                case "not": token = Token.Not; break;
+                case "if": type = TokenType.If; break;
+                case "elif": type = TokenType.Elif; break;
+                case "else": type = TokenType.Else; break;
+                case "end": type = TokenType.End; break;
+                case "for": type = TokenType.For; break;
+                case "to": type = TokenType.To; break;
+                case "return": type = TokenType.Return; break;
+                case "and": type = TokenType.And; break;
+                case "or": type = TokenType.Or; break;
+                case "not": type = TokenType.Not; break;
+                default: type = TokenType.Identifer; break;
             }
-            return token;
+            return new Token() { Type = type, Location = location, Text = text };
         }
 
         Token ReadNumber()
         {
-            var s = new StringBuilder();
+            var location = this.currentLocation;
+            var sb = new StringBuilder();
             while (char.IsDigit(this.currentChar) || this.currentChar == '.')
             {
-                s.Append(this.currentChar);
+                sb.Append(this.currentChar);
                 this.ReadChar();
-            } 
-            if (!double.TryParse(s.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
-                throw new Exception($"InvalidNumber: {s}");
-            this.Value = new Value(number);
-            return Token.Value;
-        }
-
-        Token ReadOperator()
-        {
-            var token = Token.Unkown;
-            if (this.currentChar == '\n') token = Token.NewLine;
-            else if (this.currentChar == ':') token = Token.Colon;
-            else if (this.currentChar == ',') token = Token.Comma;
-            else if (this.currentChar == '=' && this.nextChar == '=') { token = Token.Equal; this.ReadChar(); }
-            else if (this.currentChar == '=') token = Token.Assign;
-            else if (this.currentChar == '!' && this.nextChar == '=') { token = Token.NotEqual; this.ReadChar(); }
-            else if (this.currentChar == '+') token = Token.Plus;
-            else if (this.currentChar == '-') token = Token.Minus;
-            else if (this.currentChar == '*' && this.nextChar == '*') { token = Token.DoubleAsterisk; this.ReadChar(); }
-            else if (this.currentChar == '*') token = Token.Asterisk;
-            else if (this.currentChar == '/' && this.nextChar == '/') { token = Token.DoubleSlash; this.ReadChar(); }
-            else if (this.currentChar == '/') token = Token.Slash;
-            else if (this.currentChar == '%') token = Token.Percent;
-            else if (this.currentChar == '(') token = Token.LeftParen;
-            else if (this.currentChar == ')') token = Token.RightParen;
-            else if (this.currentChar == '<' && this.nextChar == '=') { token = Token.LessEqual; this.ReadChar(); }
-            else if (this.currentChar == '<') token = Token.Less;
-            else if (this.currentChar == '>' && this.nextChar == '=') { token = Token.MoreEqual; this.ReadChar(); }
-            else if (this.currentChar == '>') token = Token.More;
-            else token = Token.Unkown;
-            this.ReadChar();
-            return token;
+            }
+            var s = sb.ToString();
+            if (!double.TryParse(s, out var n))
+                throw new Exception($"InvalidNumberFormat: {sb}");
+            return new Token() { Type = TokenType.Value, Location = location, Text = s, Value = new Value(n) };
         }
 
         Token ReadString(char enclosure)
         {
-            var s = new StringBuilder();
+            var location = this.currentLocation;
+            var sb = new StringBuilder();
             while (this.ReadChar() != enclosure)
             {
-                if (this.currentChar == (char)0) throw new Exception($"InvalidString: {s}");
+                if (this.currentChar == (char)0) throw new Exception($"InvalidStringLiteral: EOF while scanning string literal");
+                if (this.currentChar == '\n') throw new Exception($"InvalidStringLiteral: NewLine while scanning string literal");
                 if (this.currentChar == '\\')
                 {
                     // Escape sequence
                     var c = char.ToLower(this.ReadChar());
-                    if (c == 'n') s.Append('\n');
-                    else if (c == 'r') s.Append('\r');
-                    else if (c == 't') s.Append('\t');
-                    else if (c == '\\') s.Append('\\');
-                    else if (c == enclosure) s.Append(enclosure);
-                    else s.Append(c);
+                    if (c == 'n') sb.Append('\n');
+                    else if (c == 'r') sb.Append('\r');
+                    else if (c == 't') sb.Append('\t');
+                    else if (c == '\\') sb.Append('\\');
+                    else if (c == enclosure) sb.Append(enclosure);
+                    else sb.Append(c);
                 }
                 else
                 {
-                    s.Append(this.currentChar);
+                    sb.Append(this.currentChar);
                 }
             }
             this.ReadChar();
-            this.Value = new Value(s.ToString());
-            return Token.Value;
+            var s = sb.ToString();
+            return new Token() { Type = TokenType.Value, Location = location, Text = s, Value = new Value(s) };
         }
 
+        Token ReadOperator()
+        {
+            var location = this.currentLocation;
+            var index = this.currentLocation.CharIndex;
+            TokenType type;
+            if (this.currentChar == '\n') type = TokenType.NewLine;
+            else if (this.currentChar == ':') type = TokenType.Colon;
+            else if (this.currentChar == ',') type = TokenType.Comma;
+            else if (this.currentChar == '=' && this.nextChar == '=') { type = TokenType.Equal; this.ReadChar(); }
+            else if (this.currentChar == '=') type = TokenType.Assign;
+            else if (this.currentChar == '!' && this.nextChar == '=') { type = TokenType.NotEqual; this.ReadChar(); }
+            else if (this.currentChar == '+') type = TokenType.Plus;
+            else if (this.currentChar == '-') type = TokenType.Minus;
+            else if (this.currentChar == '*' && this.nextChar == '*') { type = TokenType.Exponent; this.ReadChar(); }
+            else if (this.currentChar == '*') type = TokenType.Multiply;
+            else if (this.currentChar == '/' && this.nextChar == '/') { type = TokenType.FloorDivision; this.ReadChar(); }
+            else if (this.currentChar == '/') type = TokenType.Division;
+            else if (this.currentChar == '%') type = TokenType.Remainder;
+            else if (this.currentChar == '(') type = TokenType.LeftParen;
+            else if (this.currentChar == ')') type = TokenType.RightParen;
+            else if (this.currentChar == '<' && this.nextChar == '=') { type = TokenType.LessEqual; this.ReadChar(); }
+            else if (this.currentChar == '<') type = TokenType.Less;
+            else if (this.currentChar == '>' && this.nextChar == '=') { type = TokenType.GreaterEqual; this.ReadChar(); }
+            else if (this.currentChar == '>') type = TokenType.Greater;
+            else type = TokenType.Unkown;
+            this.ReadChar();
+            return new Token() { Type = type, Location = location, Text = this.source.Substring(index, this.currentLocation.CharIndex - index) };
+        }
 
         char ReadChar()
         {
@@ -788,11 +816,11 @@ namespace Suconbu.Scripting.Memezo
 
     struct Clause
     {
-        public Token Token;
+        public TokenType Token;
         public Location Location;
         public string Var;
 
-        public Clause(Token token, Location location, string var)
+        public Clause(TokenType token, Location location, string var)
         {
             this.Token = token;
             this.Location = location;
@@ -800,14 +828,14 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    enum Token
+    enum TokenType
     {
-        Unkown,
+        None, Unkown,
 
         Identifer, Value,
 
         // Keyword
-        Print, If, Elif, Else, For, To, End, Return,
+        If, Elif, Else, For, To, End, Return,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
@@ -815,16 +843,16 @@ namespace Suconbu.Scripting.Memezo
         OperatorBegin,
 
         // Arithmetic operator
-        Plus, Minus, Asterisk, Slash, DoubleSlash, Percent, DoubleAsterisk,
+        Plus, Minus, Multiply, Division, FloorDivision, Remainder, Exponent,
 
         // Comparison operator
-        Equal, Less, More, NotEqual, LessEqual, MoreEqual,
+        Equal, Less, Greater, NotEqual, LessEqual, GreaterEqual,
 
         // Logical operator
         Or, And, Not,
 
         OperatorEnd,
 
-        EOF = -1
+        Eof = -1
     }
 }
