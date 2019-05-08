@@ -1,0 +1,6 @@
+# NOK:MissingToken: End
+if 1:
+	1
+if 1:
+	2
+end

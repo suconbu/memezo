@@ -49,6 +49,29 @@ namespace Suconbu.Scripting.Memezo
 
         public bool BatchRun(string source)
         {
+            return this.RunInternal(source);
+        }
+
+        public bool InteractiveRun(string source, out bool deferred)
+        {
+            deferred = true;
+            this.deferredSource.AppendLine(source);
+            var tokens = Lexer.SplitTokens(source);
+            this.nestingLevelOfDeferredSource += tokens.Count(t => t.HasClause());
+            this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
+            if (this.nestingLevelOfDeferredSource > 0) return true;
+
+            var result = this.RunInternal(this.deferredSource.ToString());
+
+            this.deferredSource.Clear();
+            this.nestingLevelOfDeferredSource = this.clauses.Count;
+            deferred = (this.nestingLevelOfDeferredSource > 0);
+
+            return result;
+        }
+
+        bool RunInternal(string source)
+        {
             var result = false;
             try
             {
@@ -66,25 +89,8 @@ namespace Suconbu.Scripting.Memezo
             catch (Exception ex)
             {
                 this.Error = new ErrorInfo(ex.Message, this.lexer.Token.Location);
+                this.clauses.Clear();
             }
-            this.clauses.Clear();
-            return result;
-        }
-
-        public bool InteractiveRun(string source, out bool deferred)
-        {
-            deferred = true;
-            this.deferredSource.AppendLine(source);
-
-            var tokens = Lexer.SplitTokens(source);
-            this.nestingLevelOfDeferredSource += tokens.Count(t => t.HasClause());
-            this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
-            if (this.nestingLevelOfDeferredSource > 0) return true;
-
-            var result = this.BatchRun(this.deferredSource.ToString());
-
-            this.deferredSource.Clear();
-            deferred = false;
             return result;
         }
 
