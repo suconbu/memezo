@@ -22,16 +22,14 @@ namespace Suconbu.Scripting.Memezo
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo Error { get; private set; }
-        public int nestingLevelOfDeferredSource { get; private set; }
         public int TotalStatementCount { get; private set; }
         public int TotalTokenCount { get; private set; }
 
+        bool exit;
         Lexer lexer;
         Location statementLocation;
-        bool exit;
-        Value returnValue = Value.Zero;
-        StringBuilder deferredSource = new StringBuilder();
-
+        int nestingLevelOfDeferredSource;
+        readonly StringBuilder deferredSource = new StringBuilder();
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<TokenType, int> operatorPrecs = new Dictionary<TokenType, int>()
         {
@@ -101,7 +99,7 @@ namespace Suconbu.Scripting.Memezo
                 case TokenType.Else: this.IfSkip(); break;
                 case TokenType.For: this.For(); break;
                 case TokenType.End: this.End(); break;
-                case TokenType.Return: this.Return(); break;
+                case TokenType.Exit: this.Exit(); break;
                 case TokenType.Eof: this.Eof(); break;
                 default:
                     if(this.lexer.Token.Type == TokenType.Identifer && this.lexer.NextToken.Type == TokenType.Assign)
@@ -241,11 +239,8 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.Move(clause.Location);
         }
 
-        void Return()
+        void Exit()
         {
-            var token = this.lexer.ReadToken();
-            if (token.Type != TokenType.Eof && token.Type != TokenType.NewLine)
-                this.returnValue = this.Expr();
             this.exit = true;
         }
 
@@ -673,7 +668,7 @@ namespace Suconbu.Scripting.Memezo
                 case "end": type = TokenType.End; break;
                 case "for": type = TokenType.For; break;
                 case "to": type = TokenType.To; break;
-                case "return": type = TokenType.Return; break;
+                case "exit": type = TokenType.Exit; break;
                 case "and": type = TokenType.And; break;
                 case "or": type = TokenType.Or; break;
                 case "not": type = TokenType.Not; break;
@@ -828,8 +823,8 @@ namespace Suconbu.Scripting.Memezo
 
         Identifer, Value,
 
-        // Keyword
-        If, Elif, Else, For, To, End, Return,
+        // Statement keyword
+        If, Elif, Else, For, To, End, Exit,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
