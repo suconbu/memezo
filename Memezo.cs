@@ -24,6 +24,7 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public event EventHandler<string> Output = delegate { };
+        public event EventHandler<SourceLocation> StatementReached = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
@@ -34,7 +35,7 @@ namespace Suconbu.Scripting.Memezo
 
         bool exit;
         Lexer lexer;
-        Location statementLocation;
+        SourceLocation statementLocation;
         int nestingLevelOfDeferredSource;
         readonly StringBuilder deferredSource = new StringBuilder();
         readonly Stack<Clause> clauses = new Stack<Clause>();
@@ -108,6 +109,7 @@ namespace Suconbu.Scripting.Memezo
             while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
 
             this.statementLocation = this.lexer.Token.Location;
+            this.StatementReached(this, this.statementLocation);
             var type = this.lexer.Token.Type;
             var nextType = this.lexer.NextToken.Type;
 
@@ -413,10 +415,10 @@ namespace Suconbu.Scripting.Memezo
         struct Clause
         {
             public TokenType Token;
-            public Location Location;
+            public SourceLocation Location;
             public string Var;
 
-            public Clause(TokenType token, Location location, string var)
+            public Clause(TokenType token, SourceLocation location, string var)
             {
                 this.Token = token;
                 this.Location = location;
@@ -425,24 +427,35 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
+    public struct SourceLocation
+    {
+        // All properties is 0 based value.
+        public int CharIndex { get; set; }
+        public int Line { get; set; }
+        public int Column { get; set; }
+
+        public override string ToString()
+        {
+            return $"Line:{this.Line + 1} Column:{this.Column + 1}";
+        }
+    }
+
     public struct ErrorInfo
     {
         public ErrorType Type { get; private set; }
         public string Message { get; private set; }
-        public int LineNo { get; private set; }
-        public int ColumnNo { get; private set; }
+        public SourceLocation Location { get; private set; }
 
-        internal ErrorInfo(ErrorType type, string message, Location location)
+        internal ErrorInfo(ErrorType type, string message, SourceLocation location)
         {
             this.Type = type;
             this.Message = message;
-            this.LineNo = location.Line + 1;
-            this.ColumnNo = location.Column + 1;
+            this.Location = location;
         }
 
         public override string ToString()
         {
-            return !string.IsNullOrEmpty(this.Message) ? $"{this.Message} at line:{this.LineNo} column:{this.ColumnNo}" : string.Empty;
+            return !string.IsNullOrEmpty(this.Message) ? $"{this.Message} at {this.Location}" : string.Empty;
         }
     }
 
@@ -627,14 +640,14 @@ namespace Suconbu.Scripting.Memezo
         public Token NextToken { get; private set; }
 
         string source;
-        Location currentLocation;
+        SourceLocation currentLocation;
         char currentChar;
         char nextChar;
 
         public Lexer(string input)
         {
             this.source = input;
-            this.Move(new Location());
+            this.Move(new SourceLocation());
         }
 
         Lexer() { }
@@ -648,7 +661,7 @@ namespace Suconbu.Scripting.Memezo
             return tokens;
         }
 
-        public void Move(Location location)
+        public void Move(SourceLocation location)
         {
             this.currentLocation = location;
             this.currentChar = this.GetCharAt(location.CharIndex);
@@ -831,13 +844,6 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    struct Location
-    {
-        public int CharIndex { get; set; }
-        public int Line { get; set; }
-        public int Column { get; set; }
-    }
-
     enum TokenType
     {
         None, Unkown,
@@ -871,13 +877,13 @@ namespace Suconbu.Scripting.Memezo
         public static Token None = new Token() { Type = TokenType.None, Text = string.Empty };
 
         public TokenType Type { get; private set; }
-        public Location Location { get; private set; }
+        public SourceLocation Location { get; private set; }
         public string Text { get; private set; }
         public Value Value { get; private set; }
 
-        public Token(TokenType type, Location location) : this(type, location, string.Empty, Value.Zero) { }
-        public Token(TokenType type, Location location, string text) : this(type, location, text, Value.Zero) { }
-        public Token(TokenType type, Location location, string text, Value value) : this()
+        public Token(TokenType type, SourceLocation location) : this(type, location, string.Empty, Value.Zero) { }
+        public Token(TokenType type, SourceLocation location, string text) : this(type, location, text, Value.Zero) { }
+        public Token(TokenType type, SourceLocation location, string text, Value value) : this()
         {
             this.Type = type;
             this.Location = location;

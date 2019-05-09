@@ -16,6 +16,7 @@ namespace Suconbu.Scripting
         {
             var interpreter = new Memezo.Interpreter();
             interpreter.Output += (s, e) => Console.WriteLine(e);
+            //interpreter.StatementReached += (s, e) => Console.WriteLine($"Statement:{e}");
             interpreter.ErrorOccurred += (s,e) => Console.WriteLine($"ERROR: {e}");
 
             var output = new StringBuilder();
