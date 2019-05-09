@@ -64,7 +64,7 @@ namespace Suconbu.Scripting.Memezo
             deferred = true;
             this.deferredSource.AppendLine(source);
             var tokens = Lexer.SplitTokens(source);
-            this.nestingLevelOfDeferredSource += tokens.Count(t => t.HasClause());
+            this.nestingLevelOfDeferredSource += tokens.Count(t => t.IsCompoundStatement());
             this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
             if (this.nestingLevelOfDeferredSource > 0) return true;
 
@@ -113,8 +113,8 @@ namespace Suconbu.Scripting.Memezo
 
             if (type == TokenType.Unkown) throw new InternalErrorException(ErrorType.UnknownToken, $"{this.lexer.Token}");
             else if (type == TokenType.If) this.OnIf();
-            else if (type == TokenType.Elif) this.OnAflterIf();
-            else if (type == TokenType.Else) this.OnAflterIf();
+            else if (type == TokenType.Elif) this.OnAfterIf();
+            else if (type == TokenType.Else) this.OnAfterIf();
             else if (type == TokenType.For) this.OnFor();
             else if (type == TokenType.End) this.OnEnd();
             else if (type == TokenType.Continue) this.OnContinue();
@@ -145,15 +145,16 @@ namespace Suconbu.Scripting.Memezo
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{this.lexer.Token}");
             }
 
-            this.VerifyToken(this.lexer.Token, TokenType.Colon);
+            if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
+
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: {this.lexer.Token} {result}");
 
             if (!result)
             {
                 int count = 0;
-                while (this.lexer.ReadToken().Type != TokenType.Eof)
+                do
                 {
-                    if (this.lexer.Token.HasClause())
+                    if (this.lexer.Token.IsCompoundStatement())
                     {
                         count++;
                     }
@@ -165,15 +166,11 @@ namespace Suconbu.Scripting.Memezo
                     {
                         if (count-- == 0) break;
                     }
-                }
-            }
-            else
-            {
-                this.lexer.ReadToken();
+                } while (this.lexer.ReadToken().Type != TokenType.Eof);
             }
         }
 
-        void OnAflterIf()
+        void OnAfterIf()
         {
             if (this.clauses.Count <= 0 || this.clauses.Peek().Token != TokenType.If)
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{this.lexer.Token}");
@@ -181,7 +178,7 @@ namespace Suconbu.Scripting.Memezo
             int count = 0;
             while (this.lexer.ReadToken().Type != TokenType.Eof)
             {
-                if (this.lexer.Token.HasClause())
+                if (this.lexer.Token.IsCompoundStatement())
                 {
                     count++;
                 }
@@ -213,7 +210,7 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
             var toValue = this.Expr();
 
-            this.VerifyToken(this.lexer.Token, TokenType.Colon);
+            if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: For {this.Vars[name]} to {toValue}");
 
@@ -222,13 +219,12 @@ namespace Suconbu.Scripting.Memezo
                 int counter = 0;
                 while (counter >= 0)
                 {
-                    this.lexer.ReadToken();
-                    if (this.lexer.Token.HasClause()) counter++;
+                    if (this.lexer.Token.IsCompoundStatement()) counter++;
                     else if (this.lexer.Token.Type == TokenType.End) counter--;
+                    this.lexer.ReadToken();
                 }
                 this.clauses.Pop();
             }
-            this.lexer.ReadToken();
         }
 
         void OnEnd()
@@ -275,7 +271,7 @@ namespace Suconbu.Scripting.Memezo
                     while (counter >= 0)
                     {
                         this.lexer.ReadToken();
-                        if (this.lexer.Token.HasClause()) counter++;
+                        if (this.lexer.Token.IsCompoundStatement()) counter++;
                         else if (this.lexer.Token.Type == TokenType.End) counter--;
                     }
                     this.lexer.ReadToken();
@@ -412,6 +408,20 @@ namespace Suconbu.Scripting.Memezo
         {
             //Debug.WriteLine(s);
         }
+
+        struct Clause
+        {
+            public TokenType Token;
+            public Location Location;
+            public string Var;
+
+            public Clause(TokenType token, Location location, string var)
+            {
+                this.Token = token;
+                this.Location = location;
+                this.Var = var;
+            }
+        }
     }
 
     public struct ErrorInfo
@@ -538,19 +548,6 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    class InternalErrorException : Exception
-    {
-        public ErrorType ErrorType { get; private set; }
-
-        public InternalErrorException(ErrorType type, string message = null) : base($"{type}:{message}")
-        {
-            this.ErrorType = type;
-        }
-        public InternalErrorException() : base() { }
-        public InternalErrorException(string message) : base(message) { }
-        public InternalErrorException(string message, Exception inner) : base(message, inner) { }
-    }
-
     class BuiltinFunction
     {
         public static void InstallAll(Interpreter interpreter)
@@ -621,31 +618,6 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    struct Token
-    {
-        public static Token None = new Token() { Type = TokenType.None, Text = string.Empty };
-
-        public TokenType Type { get; internal set; }
-        public Location Location { get; internal set; }
-        public string Text { get; internal set; }
-        public Value Value { get; internal set; }
-
-        public bool HasClause()
-        {
-            return this.Type == TokenType.If || this.Type == TokenType.For;
-        }
-
-        public bool IsOperator()
-        {
-            return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd;
-        }
-
-        public override string ToString()
-        {
-            return $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
-        }
-    }
-
     class Lexer
     {
         public event EventHandler<Token> TokenRead = delegate { };
@@ -699,7 +671,7 @@ namespace Suconbu.Scripting.Memezo
                 this.ReadChar();
 
             Token token;
-            if (this.currentChar == (char)0) token = new Token() { Type = TokenType.Eof };
+            if (this.currentChar == (char)0) token = new Token(TokenType.Eof, this.currentLocation);
             else if (this.currentChar == '#') token = this.ReadComment();
             else if (this.IsLetterOrUnderscore(this.currentChar)) token = this.ReadIdentifier();
             else if (char.IsDigit(this.currentChar)) token = this.ReadNumber();
@@ -717,7 +689,7 @@ namespace Suconbu.Scripting.Memezo
             while (this.currentChar != '\n' && this.currentChar != (char)0) this.ReadChar();
             var type = (this.currentChar == '\n') ? TokenType.NewLine : TokenType.Eof;
             this.ReadChar();
-            return new Token() { Type = type, Location = location };
+            return new Token(type, location);
         }
 
         Token ReadIdentifier()
@@ -739,7 +711,7 @@ namespace Suconbu.Scripting.Memezo
                 (identifier == "or") ? TokenType.Or :
                 (identifier == "not") ? TokenType.Not :
                 TokenType.Identifer;
-            return new Token() { Type = type, Location = location, Text = identifier };
+            return new Token(type, location, identifier);
         }
 
         Token ReadNumber()
@@ -754,7 +726,7 @@ namespace Suconbu.Scripting.Memezo
             var s = sb.ToString();
             if (!double.TryParse(s, out var n))
                 throw new InternalErrorException(ErrorType.InvalidNumberFormat, "{sb}");
-            return new Token() { Type = TokenType.Value, Location = location, Text = s, Value = new Value(n) };
+            return new Token(TokenType.Value, location, s, new Value(n));
         }
 
         Token ReadString(char enclosure)
@@ -783,7 +755,7 @@ namespace Suconbu.Scripting.Memezo
             }
             this.ReadChar();
             var s = sb.ToString();
-            return new Token() { Type = TokenType.Value, Location = location, Text = s, Value = new Value(s) };
+            return new Token(TokenType.Value, location, s, new Value(s));
         }
 
         Token ReadOperator()
@@ -812,7 +784,7 @@ namespace Suconbu.Scripting.Memezo
             else if (this.currentChar == '>') type = TokenType.Greater;
             else type = TokenType.Unkown;
             this.ReadChar();
-            return new Token() { Type = type, Location = location, Text = this.source.Substring(index, this.currentLocation.CharIndex - index) };
+            return new Token(type, location, this.source.Substring(index, this.currentLocation.CharIndex - index));
         }
 
         char ReadChar()
@@ -865,20 +837,6 @@ namespace Suconbu.Scripting.Memezo
         public int Column { get; set; }
     }
 
-    struct Clause
-    {
-        public TokenType Token;
-        public Location Location;
-        public string Var;
-
-        public Clause(TokenType token, Location location, string var)
-        {
-            this.Token = token;
-            this.Location = location;
-            this.Var = var;
-        }
-    }
-
     enum TokenType
     {
         None, Unkown,
@@ -905,5 +863,53 @@ namespace Suconbu.Scripting.Memezo
         OperatorEnd,
 
         Eof = -1
+    }
+
+    struct Token
+    {
+        public static Token None = new Token() { Type = TokenType.None, Text = string.Empty };
+
+        public TokenType Type { get; private set; }
+        public Location Location { get; private set; }
+        public string Text { get; private set; }
+        public Value Value { get; private set; }
+
+        public Token(TokenType type, Location location) : this(type, location, string.Empty, Value.Zero) { }
+        public Token(TokenType type, Location location, string text) : this(type, location, text, Value.Zero) { }
+        public Token(TokenType type, Location location, string text, Value value) : this()
+        {
+            this.Type = type;
+            this.Location = location;
+            this.Text = text;
+            this.Value = value;
+        }
+
+        public bool IsCompoundStatement()
+        {
+            return this.Type == TokenType.If || this.Type == TokenType.For;
+        }
+
+        public bool IsOperator()
+        {
+            return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd;
+        }
+
+        public override string ToString()
+        {
+            return $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
+        }
+    }
+
+    class InternalErrorException : Exception
+    {
+        public ErrorType ErrorType { get; private set; }
+
+        public InternalErrorException(ErrorType type, string message = null) : base($"{type}:{message}")
+        {
+            this.ErrorType = type;
+        }
+        public InternalErrorException() : base() { }
+        public InternalErrorException(string message) : base(message) { }
+        public InternalErrorException(string message, Exception inner) : base(message, inner) { }
     }
 }
