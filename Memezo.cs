@@ -655,9 +655,16 @@ namespace Suconbu.Scripting.Memezo
         public static List<Token> SplitTokens(string input)
         {
             var tokens = new List<Token>();
-            var lexer = new Lexer(input);
-            while (lexer.ReadToken().Type != TokenType.Eof)
-                tokens.Add(lexer.Token);
+            try
+            {
+                var lexer = new Lexer(input);
+                while (lexer.ReadToken().Type != TokenType.Eof)
+                    tokens.Add(lexer.Token);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine(ex);
+            }
             return tokens;
         }
 
@@ -739,7 +746,7 @@ namespace Suconbu.Scripting.Memezo
             }
             var s = sb.ToString();
             if (!double.TryParse(s, out var n))
-                throw new InternalErrorException(ErrorType.InvalidNumberFormat, "'{sb}'");
+                throw new InternalErrorException(ErrorType.InvalidNumberFormat, $"'{sb}'");
             return new Token(TokenType.Value, location, s, new Value(n));
         }
 
