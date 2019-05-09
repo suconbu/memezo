@@ -1,0 +1,2 @@
+# NOK:InvalidOperation:'max' is a function
+max = 1 + 2

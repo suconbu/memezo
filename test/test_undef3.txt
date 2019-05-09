@@ -1,2 +1,2 @@
-# NOK:UndeclaredIdentifier:maxxx
+# NOK:UndeclaredIdentifier:'maxxx'
 a = maxxx(10, 20)

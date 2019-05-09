@@ -16,7 +16,7 @@ namespace Suconbu.Scripting.Memezo
     public enum ErrorType
     {
         UnexpectedToken, UnknownToken, MissingToken, UndeclaredIdentifier,
-        NotSupportedOperation, UnknownOperator, InvalidNumberOfArguments, InvalidDataType,
+        NotSupportedOperation, UnknownOperator, InvalidNumberOfArguments, InvalidDataType, InvalidOperation,
         InvalidNumberFormat, InvalidStringLiteral, UnknownError
     }
     public delegate Value Function(List<Value> args);
@@ -307,6 +307,7 @@ namespace Suconbu.Scripting.Memezo
         void OnAssign()
         {
             var name = this.lexer.Token.Text;
+            if (this.Functions.ContainsKey(name)) throw new InternalErrorException(ErrorType.InvalidOperation, $"'{name}' is a function");
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
             this.lexer.ReadToken();
             this.Vars[name] = this.Expr();
@@ -373,7 +374,7 @@ namespace Suconbu.Scripting.Memezo
                 }
                 else
                 {
-                    throw new InternalErrorException(ErrorType.UndeclaredIdentifier, $"{identifier}");
+                    throw new InternalErrorException(ErrorType.UndeclaredIdentifier, $"'{identifier}'");
                 }
             }
             else
@@ -725,7 +726,7 @@ namespace Suconbu.Scripting.Memezo
             }
             var s = sb.ToString();
             if (!double.TryParse(s, out var n))
-                throw new InternalErrorException(ErrorType.InvalidNumberFormat, "{sb}");
+                throw new InternalErrorException(ErrorType.InvalidNumberFormat, "'{sb}'");
             return new Token(TokenType.Value, location, s, new Value(n));
         }
 
