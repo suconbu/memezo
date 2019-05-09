@@ -100,7 +100,7 @@ namespace Suconbu.Scripting
                     Console.Write($"OK: {interpreter.LastError}");
                     ++okCount;
                 }
-                Console.WriteLine($" --- {elapsed:#,0}ms statements:{interpreter.TotalStatementCount} tokens:{interpreter.TotalTokenCount} outputlength:{output.Length}");
+                Console.WriteLine($" --- {elapsed:#,0}ms statements:{interpreter.Stat.StatementCount} tokens:{interpreter.Stat.TotalTokenCount} outputlength:{output.Length}");
                 ++totalCount;
             }
             Console.WriteLine("----------------------------------------");

@@ -30,8 +30,7 @@ namespace Suconbu.Scripting.Memezo
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo LastError { get; private set; }
-        public int TotalStatementCount { get; private set; }
-        public int TotalTokenCount { get; private set; }
+        public RunStat Stat { get; private set; } = new RunStat();
 
         bool exit;
         Lexer lexer;
@@ -85,13 +84,9 @@ namespace Suconbu.Scripting.Memezo
             {
                 this.exit = false;
                 this.lexer = new Lexer(source);
-                this.lexer.TokenRead += (s, e) => this.TotalTokenCount++;
+                this.lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
                 this.lexer.ReadToken();
-                while (!this.exit)
-                {
-                    this.Statement();
-                    this.TotalStatementCount++;
-                }
+                while (!this.exit) this.Statement();
                 result = true;
             }
             catch (Exception ex)
@@ -110,6 +105,8 @@ namespace Suconbu.Scripting.Memezo
 
             this.statementLocation = this.lexer.Token.Location;
             this.StatementReached(this, this.statementLocation);
+            this.Stat.StatementCount++;
+
             var type = this.lexer.Token.Type;
             var nextType = this.lexer.NextToken.Type;
 
@@ -330,6 +327,7 @@ namespace Suconbu.Scripting.Memezo
                 this.lexer.ReadToken();
                 var rhs = this.Expr(prec);
                 lhs = lhs.BinaryOperation(rhs, type);
+                RunStat.Increment(this.Stat.OperatorCounts, type.ToString());
             }
 
             return lhs;
@@ -373,6 +371,7 @@ namespace Suconbu.Scripting.Memezo
                     this.VerifyToken(this.lexer.ReadToken(), TokenType.LeftParen);
                     var args = this.ReadArguments();
                     primary = this.Functions[name](args);
+                    RunStat.Increment(this.Stat.FunctionInvokedCounts, name);
                 }
                 else
                 {
@@ -425,6 +424,21 @@ namespace Suconbu.Scripting.Memezo
                 this.Var = var;
             }
         }
+    }
+
+    public class RunStat
+    {
+        public static void Increment(Dictionary<string, int> target, string key)
+        {
+            target[key] = target.TryGetValue(key, out var count) ? count + 1 : 1;
+        }
+        public int StatementCount;
+        public Dictionary<string, int> TokenCounts = new Dictionary<string, int>(); // Key:TokenType name
+        public Dictionary<string, int> OperatorCounts = new Dictionary<string, int>(); // Key:Operator name
+        public Dictionary<string, int> FunctionInvokedCounts = new Dictionary<string, int>(); // Key:Function name
+        public int TotalTokenCount { get { return this.TokenCounts.Sum(kv => kv.Value); } }
+        public int TotalOperatorCount { get { return this.OperatorCounts.Sum(kv => kv.Value); } }
+        public int TotalFunctionInvokedCount { get { return this.FunctionInvokedCounts.Sum(kv => kv.Value); } }
     }
 
     public struct SourceLocation
