@@ -1,14 +1,8 @@
-﻿// MemezoScript - Embeded scripting environment.
-// Based on https://github.com/Timu5/BasicSharp
-
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Suconbu.Scripting.Memezo
 {
@@ -40,13 +34,13 @@ namespace Suconbu.Scripting.Memezo
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<TokenType, int> operatorPrecs = new Dictionary<TokenType, int>()
         {
-            { TokenType.Exponent, 0 },
-            { TokenType.Multiply, 1 }, {TokenType.Division, 1 }, {TokenType.FloorDivision, 1 }, {TokenType.Remainder, 1 },
-            { TokenType.Plus, 2 }, { TokenType.Minus, 2 },
-            { TokenType.Equal, 3 }, { TokenType.NotEqual, 3 }, { TokenType.Less, 3 }, { TokenType.Greater, 3 }, { TokenType.LessEqual, 3 },  { TokenType.GreaterEqual, 3 },
-            { TokenType.Not, 4 },
-            { TokenType.And, 5 },
-            { TokenType.Or, 6 }
+            { TokenType.Exponent, 7 },
+            { TokenType.Multiply, 6 }, {TokenType.Division, 6 }, {TokenType.FloorDivision, 6 }, {TokenType.Remainder, 6 },
+            { TokenType.Plus, 5 }, { TokenType.Minus, 5 },
+            { TokenType.Equal, 4 }, { TokenType.NotEqual, 4 }, { TokenType.Less, 4 }, { TokenType.Greater, 4 }, { TokenType.LessEqual, 4 },  { TokenType.GreaterEqual, 4 },
+            { TokenType.Not, 3 },
+            { TokenType.And, 2 },
+            { TokenType.Or, 1 }
         };
 
         public Interpreter()
@@ -127,22 +121,11 @@ namespace Suconbu.Scripting.Memezo
         void OnIf()
         {
         Start:
-            bool result = true;
-            if (this.lexer.Token.Type == TokenType.If || this.lexer.Token.Type == TokenType.Elif)
-            {
-                if (this.lexer.Token.Type == TokenType.If)
-                    this.clauses.Push(new Clause(TokenType.If, this.statementLocation, null));
-                this.lexer.ReadToken();
-                result = this.Expr().Boolean();
-            }
-            else if (this.lexer.Token.Type == TokenType.Else)
-            {
-                this.lexer.ReadToken();
-            }
-            else
-            {
-                throw new InternalErrorException(ErrorType.UnexpectedToken, $"{this.lexer.Token}");
-            }
+            var firstTokenType = this.lexer.Token.Type;
+            this.lexer.ReadToken();
+            if (firstTokenType == TokenType.If)
+                this.clauses.Push(new Clause(firstTokenType, this.statementLocation, null));
+            var result = (firstTokenType == TokenType.If || firstTokenType == TokenType.Elif) ? this.Expr().Boolean() : true;
 
             if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
 
@@ -313,15 +296,15 @@ namespace Suconbu.Scripting.Memezo
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: Assign {name}={this.Vars[name].ToString()}");
         }
 
-        Value Expr(int lowestPrec = int.MaxValue - 1)
+        Value Expr(int lowestPrec = int.MinValue + 1)
         {
             var lhs = this.Primary();
             this.lexer.ReadToken();
             while (true)
             {
                 if (!this.lexer.Token.IsOperator()) break;
-                if (!this.operatorPrecs.TryGetValue(this.lexer.Token.Type, out var prec)) prec = int.MaxValue;
-                if (prec >= lowestPrec) break;
+                if (!this.operatorPrecs.TryGetValue(this.lexer.Token.Type, out var prec)) prec = int.MinValue;
+                if (prec <= lowestPrec) break;
 
                 var type = this.lexer.Token.Type;
                 this.lexer.ReadToken();
@@ -367,11 +350,10 @@ namespace Suconbu.Scripting.Memezo
                 }
                 else if (this.Functions.ContainsKey(identifier))
                 {
-                    var name = identifier;
                     this.VerifyToken(this.lexer.ReadToken(), TokenType.LeftParen);
                     var args = this.ReadArguments();
-                    primary = this.Functions[name](args);
-                    RunStat.Increment(this.Stat.FunctionInvokedCounts, name);
+                    primary = this.Functions[identifier](args);
+                    RunStat.Increment(this.Stat.FunctionInvokedCounts, identifier);
                 }
                 else
                 {
