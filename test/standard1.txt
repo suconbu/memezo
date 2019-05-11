@@ -73,4 +73,31 @@ if round(1.5) != 2 : print("10.15 ") end
 if round(1.9) != 2 : print("10.16 ") end
 if round(2.0) != 2 : print("10.17 ") end
 
+if strlen("") != 0 : print("11.1 ") end
+if strlen("123") != 3 : print("11.2 ") end
+
+if chr(97) != "a" : print("12.1 ") end
+
+if ord("a") != 97 : print("13.1 ") end
+
+if slice("12345") != "12345" : print("14.1 ") end
+if slice("12345",0) != "12345" : print("14.2 ") end
+if slice("12345",2) != "345" : print("14.3 ") end
+if slice("12345",100) != "" : print("14.4 ") end
+if slice("12345",-2) != "45" : print("14.5 ") end
+if slice("12345",-100) != "12345" : print("14.6 ") end
+
+if slice("12345",0,0) != "" : print("14.7 ") end
+if slice("12345",0,2) != "12" : print("14.8 ") end
+if slice("12345",0,100) != "12345" : print("14.9 ") end
+if slice("12345",0,-2) != "123" : print("14.10 ") end
+if slice("12345",0,-100) != "" : print("14.11 ") end
+
+if slice("12345",2,0) != "" : print("14.12 ") end
+if slice("12345",2,2) != "" : print("14.13 ") end
+if slice("12345",2,4) != "34" : print("14.14 ") end
+if slice("12345",2,-2) != "3" : print("14.15 ") end
+if slice("12345",-4,-2) != "23" : print("14.16 ") end
+if slice("12345",-4,4) != "234" : print("14.17 ") end
+
 print("end")
