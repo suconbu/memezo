@@ -190,20 +190,23 @@ namespace Suconbu.Scripting.Memezo
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Identifer);
             var name = this.lexer.Token.Text;
 
-            this.VerifyToken(this.lexer.ReadToken(), TokenType.Assign);
+            var token = this.lexer.ReadToken();
+            if (token.Type != TokenType.Assign && token.Type != TokenType.In)
+                throw new InternalErrorException(ErrorType.UnexpectedToken, $"{token}");
 
             this.lexer.ReadToken();
             var fromValue = this.Expr();
-            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
-            {
-                this.Vars[name] = fromValue;
-                this.clauses.Push(new Clause(statementToken, name));
-            }
 
             this.VerifyToken(this.lexer.Token, TokenType.To);
 
             this.lexer.ReadToken();
             var toValue = this.Expr();
+
+            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
+            {
+                this.Vars[name] = fromValue;
+                this.clauses.Push(new Clause(statementToken, name));
+            }
 
             if (this.lexer.Token.Type == TokenType.Colon || this.lexer.Token.Type == TokenType.Do) this.lexer.ReadToken();
 
@@ -687,8 +690,9 @@ namespace Suconbu.Scripting.Memezo
                 (identifier == "else") ? TokenType.Else :
                 (identifier == "then") ? TokenType.Then :
                 (identifier == "for") ? TokenType.For :
-                (identifier == "repeat") ? TokenType.Repeat :
+                (identifier == "in") ? TokenType.In :
                 (identifier == "to") ? TokenType.To :
+                (identifier == "repeat") ? TokenType.Repeat :
                 (identifier == "do") ? TokenType.Do :
                 (identifier == "end") ? TokenType.End :
                 (identifier == "continue") ? TokenType.Continue :
@@ -824,7 +828,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Statement keyword
-        If, Elif, Else, Then, For, Repeat, To, Do, End, Continue, Break, Exit,
+        If, Elif, Else, Then, For, In, To, Repeat, Do, End, Continue, Break, Exit,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,

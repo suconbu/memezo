@@ -73,7 +73,7 @@ namespace Suconbu.Scripting
                     expectResult = match.Groups[1].Value == "OK";
                     expectOutput = match.Groups[2].Value;
                 }
-                Console.Write($"{Path.GetFileName(file),-30} - ");
+                Console.Write($"{Path.GetFileName(file),-20} - ");
 
                 var interp = new Memezo.Interpreter();
                 interp.Install(new Memezo.StandardLibrary(), new Memezo.RandomLibrary());
@@ -85,6 +85,8 @@ namespace Suconbu.Scripting
                 var sw = Stopwatch.StartNew();
                 var result = interp.Run(code);
                 var elapsed = sw.ElapsedMilliseconds;
+
+                Console.Write($"{elapsed,5:#,0}ms - ");
 
                 if (expectResult && !result)
                     // 期待通り成功せず
@@ -103,7 +105,7 @@ namespace Suconbu.Scripting
                     Console.Write($"OK: {interp.LastError}");
                     ++okCount;
                 }
-                Console.WriteLine($" --- {elapsed:#,0}ms --- statements:{interp.Stat.StatementCount} tokens:{interp.Stat.TotalTokenCount} outputlength:{output.Length}");
+                Console.WriteLine($"   (statements:{interp.Stat.StatementCount} tokens:{interp.Stat.TotalTokenCount} outputlength:{output.Length})");
                 ++totalCount;
             }
             Console.WriteLine("----------------------------------------");
