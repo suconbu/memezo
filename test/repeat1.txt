@@ -1,0 +1,39 @@
+# OK:11 12231223 12241224 124124 end
+
+repeat 2:
+	print(1)
+end
+print(" ")
+
+repeat 2:
+	print(1)
+	repeat 2:
+		print(2)
+	end
+	print(3)
+end
+print(" ")
+
+repeat 2:
+	print(1)
+	repeat 2:
+		print(2)
+		if 1 continue end
+		print(3)
+	end
+	print(4)
+end
+print(" ")
+
+repeat 2:
+	print(1)
+	repeat 2:
+		print(2)
+		if 1 break end
+		print(3)
+	end
+	print(4)
+end
+print(" ")
+
+print("end")

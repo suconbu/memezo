@@ -120,6 +120,7 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Elif) this.OnAfterIf();
             else if (type == TokenType.Else) this.OnAfterIf();
             else if (type == TokenType.For) this.OnFor();
+            else if (type == TokenType.Repeat) this.OnRepeat();
             else if (type == TokenType.End) this.OnEnd();
             else if (type == TokenType.Continue) this.OnContinue();
             else if (type == TokenType.Break) this.OnBreak();
@@ -132,14 +133,14 @@ namespace Suconbu.Scripting.Memezo
         void OnIf()
         {
         Start:
-            var firstTokenType = this.lexer.Token.Type;
+            var statementToken = this.lexer.Token;
             this.lexer.ReadToken();
-            if (firstTokenType == TokenType.If)
-                this.clauses.Push(new Clause(firstTokenType, this.statementLocation, null));
-            var result = (firstTokenType == TokenType.If || firstTokenType == TokenType.Elif) ? this.Expr().Boolean() : true;
+            if (statementToken.Type == TokenType.If)
+                this.clauses.Push(new Clause(statementToken, null));
+            var result = (statementToken.Type == TokenType.If || statementToken.Type == TokenType.Elif) ? this.Expr().Boolean() : true;
 
             if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
-            else if (firstTokenType != TokenType.Else && this.lexer.Token.Type == TokenType.Then) this.lexer.ReadToken();
+            else if (statementToken.Type != TokenType.Else && this.lexer.Token.Type == TokenType.Then) this.lexer.ReadToken();
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: {this.lexer.Token} {result}");
 
@@ -166,7 +167,7 @@ namespace Suconbu.Scripting.Memezo
 
         void OnAfterIf()
         {
-            if (this.clauses.Count <= 0 || this.clauses.Peek().Token != TokenType.If)
+            if (this.clauses.Count <= 0 || this.clauses.Peek().Token.Type != TokenType.If)
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{this.lexer.Token}");
 
             int count = 0;
@@ -183,9 +184,9 @@ namespace Suconbu.Scripting.Memezo
             }
         }
 
-
         void OnFor()
         {
+            var statementToken = this.lexer.Token;
             this.VerifyToken(this.lexer.ReadToken(), TokenType.Identifer);
             var name = this.lexer.Token.Text;
 
@@ -196,7 +197,7 @@ namespace Suconbu.Scripting.Memezo
             if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
                 this.Vars[name] = fromValue;
-                this.clauses.Push(new Clause(TokenType.For, this.statementLocation, name));
+                this.clauses.Push(new Clause(statementToken, name));
             }
 
             this.VerifyToken(this.lexer.Token, TokenType.To);
@@ -208,34 +209,44 @@ namespace Suconbu.Scripting.Memezo
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: For {this.Vars[name]} to {toValue}");
 
-            if (this.Vars[name].BinaryOperation(toValue, TokenType.Greater).Number == 1)
+            if (this.Vars[name].BinaryOperation(toValue, TokenType.Greater).Number == 1) this.FinishLoop();
+        }
+
+        void OnRepeat()
+        {
+            var statementToken = this.lexer.Token;
+            this.lexer.ReadToken();
+            var count = this.Expr();
+            var name = $"${this.statementLocation.CharIndex}";
+            if (this.clauses.Count == 0 || this.clauses.Peek().Var != name)
             {
-                int counter = 0;
-                while (counter >= 0)
-                {
-                    if (this.lexer.Token.IsCompoundStatement()) counter++;
-                    else if (this.lexer.Token.Type == TokenType.End) counter--;
-                    this.lexer.ReadToken();
-                }
-                this.clauses.Pop();
+                this.Vars[name] = Value.Zero;
+                this.clauses.Push(new Clause(statementToken, name));
             }
+
+            if (this.lexer.Token.Type == TokenType.Colon || this.lexer.Token.Type == TokenType.Do) this.lexer.ReadToken();
+
+            this.DebugLog($"{this.lexer.Token.Location.Line + 1}: Repeat {count}");
+
+            if (this.Vars[name].BinaryOperation(count, TokenType.GreaterEqual).Number == 1) this.FinishLoop();
         }
 
         void OnEnd()
         {
+            this.lexer.ReadToken();
+
             if (this.clauses.Count <= 0)
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{TokenType.End}");
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: End");
+
             var clause = this.clauses.Peek();
-            if (clause.Token == TokenType.If)
+            if (clause.Token.Type == TokenType.If)
                 this.EndIf(clause);
-            else if (clause.Token == TokenType.For)
+            else if (clause.Token.IsLoop())
                 this.EndFor(clause);
             else
                 throw new InternalErrorException(ErrorType.UnexpectedToken, $"{clause.Token}");
-
-            this.lexer.ReadToken();
         }
 
         void OnContinue()
@@ -243,10 +254,9 @@ namespace Suconbu.Scripting.Memezo
             while (this.clauses.Count > 0)
             {
                 var clause = this.clauses.Peek();
-                if(clause.Token == TokenType.For)
+                if(clause.Token.IsLoop())
                 {
                     this.EndFor(clause);
-                    this.lexer.ReadToken();
                     return;
                 }
                 this.clauses.Pop();
@@ -256,24 +266,34 @@ namespace Suconbu.Scripting.Memezo
 
         void OnBreak()
         {
+            this.lexer.ReadToken();
+
             int counter = 0;
             while (this.clauses.Count > 0)
             {
-                var clause = this.clauses.Pop();
-                if (clause.Token == TokenType.For)
+                var clause = this.clauses.Peek();
+                if (clause.Token.IsLoop())
                 {
-                    while (counter >= 0)
-                    {
-                        this.lexer.ReadToken();
-                        if (this.lexer.Token.IsCompoundStatement()) counter++;
-                        else if (this.lexer.Token.Type == TokenType.End) counter--;
-                    }
-                    this.lexer.ReadToken();
+                    this.FinishLoop(counter);
                     return;
                 }
+                this.clauses.Pop();
                 counter++;
             }
             throw new InternalErrorException(ErrorType.UnexpectedToken, $"{TokenType.Break}");
+        }
+
+        void FinishLoop(int initialCounter = 0)
+        {
+            int counter = initialCounter;
+            while (counter >= 0)
+            {
+                if (this.lexer.Token.IsCompoundStatement()) counter++;
+                else if (this.lexer.Token.Type == TokenType.End) counter--;
+                this.lexer.ReadToken();
+            }
+            var clause = this.clauses.Pop();
+            if (clause.Var.StartsWith("$")) this.Vars.Remove(clause.Var);
         }
 
         void EndIf(Clause clause)
@@ -284,7 +304,8 @@ namespace Suconbu.Scripting.Memezo
         void EndFor(Clause clause)
         {
             this.Vars[clause.Var] = this.Vars[clause.Var].BinaryOperation(new Value(1), TokenType.Plus);
-            this.lexer.Move(clause.Location);
+            this.lexer.Move(clause.Token.Location);
+            this.lexer.ReadToken();
         }
 
         void OnExit()
@@ -407,14 +428,12 @@ namespace Suconbu.Scripting.Memezo
 
         struct Clause
         {
-            public TokenType Token;
-            public SourceLocation Location;
+            public Token Token;
             public string Var;
 
-            public Clause(TokenType token, SourceLocation location, string var)
+            public Clause(Token token, string var)
             {
                 this.Token = token;
-                this.Location = location;
                 this.Var = var;
             }
         }
@@ -668,6 +687,7 @@ namespace Suconbu.Scripting.Memezo
                 (identifier == "else") ? TokenType.Else :
                 (identifier == "then") ? TokenType.Then :
                 (identifier == "for") ? TokenType.For :
+                (identifier == "repeat") ? TokenType.Repeat :
                 (identifier == "to") ? TokenType.To :
                 (identifier == "do") ? TokenType.Do :
                 (identifier == "end") ? TokenType.End :
@@ -804,7 +824,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Statement keyword
-        If, Elif, Else, Then, For, To, Do, End, Continue, Break, Exit,
+        If, Elif, Else, Then, For, Repeat, To, Do, End, Continue, Break, Exit,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
@@ -844,15 +864,9 @@ namespace Suconbu.Scripting.Memezo
             this.Value = value;
         }
 
-        public bool IsCompoundStatement()
-        {
-            return this.Type == TokenType.If || this.Type == TokenType.For;
-        }
-
-        public bool IsOperator()
-        {
-            return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd;
-        }
+        public bool IsCompoundStatement() { return this.Type == TokenType.If || this.IsLoop(); }
+        public bool IsLoop() { return this.Type == TokenType.For || this.Type == TokenType.Repeat; }
+        public bool IsOperator() { return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd; }
 
         public override string ToString()
         {
