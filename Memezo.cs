@@ -59,7 +59,7 @@ namespace Suconbu.Scripting.Memezo
             }
         }
 
-        public bool BatchRun(string source)
+        public bool Run(string source)
         {
             return this.RunInternal(source);
         }

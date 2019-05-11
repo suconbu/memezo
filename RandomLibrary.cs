@@ -8,7 +8,7 @@ namespace Suconbu.Scripting.Memezo
     {
         static readonly Random random = new Random();
 
-        public string Name { get { return "Random"; } }
+        public string Name { get { return "random"; } }
 
         public IEnumerable<KeyValuePair<string, Function>> GetFunctions()
         {

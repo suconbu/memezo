@@ -5,7 +5,7 @@ namespace Suconbu.Scripting.Memezo
 {
     class StandardLibrary : IFunctionLibrary
     {
-        public string Name { get { return "Standard"; } }
+        public string Name { get { return "standard"; } }
 
         public IEnumerable<KeyValuePair<string, Function>> GetFunctions()
         {

@@ -15,8 +15,7 @@ namespace Suconbu.Scripting
         static void Main(string[] args)
         {
             var interp = new Memezo.Interpreter();
-            interp.Install(new Memezo.StandardLibrary());
-            interp.Install(new Memezo.RandomLibrary());
+            interp.Install(new Memezo.StandardLibrary(), new Memezo.RandomLibrary());
             interp.Output += (s, e) => Console.WriteLine(e);
             //interpreter.StatementReached += (s, e) => Console.WriteLine($"Statement:{e}");
             interp.ErrorOccurred += (s,e) => Console.WriteLine($"ERROR: {e}");
@@ -77,15 +76,14 @@ namespace Suconbu.Scripting
                 Console.Write($"{Path.GetFileName(file),-30} - ");
 
                 var interp = new Memezo.Interpreter();
-                interp.Install(new Memezo.StandardLibrary());
-                interp.Install(new Memezo.RandomLibrary());
+                interp.Install(new Memezo.StandardLibrary(), new Memezo.RandomLibrary());
                 var output = new StringBuilder();
                 interp.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
                 interp.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
 
                 var code = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
-                var result = interp.BatchRun(code);
+                var result = interp.Run(code);
                 var elapsed = sw.ElapsedMilliseconds;
 
                 if (expectResult && !result)
