@@ -31,11 +31,22 @@ namespace Suconbu.Scripting
                 {
                     Console.WriteLine("v" + Assembly.GetExecutingAssembly().GetName().Version.ToString(3));
                 }
+                else if (line.StartsWith("@run"))
+                {
+                    var match = Regex.Match(line, "@run (.+)");
+                    if(match.Success)
+                    {
+                        if (File.Exists(match.Groups[1].Value))
+                        {
+                            interp.Run(File.ReadAllText(match.Groups[1].Value));
+                        }
+                    }
+                }
                 else if (line.StartsWith("@test"))
                 {
                     var pattern = "*.txt";
                     var match = Regex.Match(line, "@test (.+)");
-                    if(match.Success)
+                    if (match.Success)
                     {
                         pattern = match.Groups[1].Value;
                     }
