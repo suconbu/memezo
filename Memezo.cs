@@ -6,11 +6,11 @@ using System.Text;
 
 namespace Suconbu.Scripting.Memezo
 {
-    public enum ValueType { Number, String }
+    public enum DataType { Number, String }
     public enum ErrorType
     {
         UnexpectedToken, UnknownToken, MissingToken, UndeclaredIdentifier,
-        NotSupportedOperation, UnknownOperator, InvalidNumberOfArguments, InvalidDataType, InvalidOperation,
+        NotSupportedOperation, UnknownOperator, InvalidNumberOfArguments, InvalidDataType, InvalidOperation, InvalidParameter,
         InvalidNumberFormat, InvalidStringLiteral, UnknownError
     }
     public delegate Value Function(List<Value> args);
@@ -25,6 +25,7 @@ namespace Suconbu.Scripting.Memezo
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo LastError { get; private set; }
         public RunStat Stat { get; private set; } = new RunStat();
+        public IEnumerable<IFunctionLibrary> InstalledLibraries { get { return this.installedLibraries; } }
 
         bool exit;
         Lexer lexer;
@@ -42,10 +43,20 @@ namespace Suconbu.Scripting.Memezo
             { TokenType.And, 2 },
             { TokenType.Or, 1 }
         };
+        public List<IFunctionLibrary> installedLibraries = new List<IFunctionLibrary>();
 
-        public Interpreter()
+        public Interpreter() { }
+
+        public void Install(params IFunctionLibrary[] libraries)
         {
-            BuiltinFunction.InstallAll(this);
+            foreach (var library in libraries)
+            {
+                foreach (var f in library.GetFunctions())
+                {
+                    this.Functions[f.Key] = f.Value;
+                }
+                this.installedLibraries.Add(library);
+            }
         }
 
         public bool BatchRun(string source)
@@ -408,6 +419,12 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
+    public interface IFunctionLibrary
+    {
+        string Name { get; }
+        IEnumerable<KeyValuePair<string, Function>> GetFunctions();
+    }
+
     public class RunStat
     {
         public static void Increment(Dictionary<string, int> target, string key)
@@ -459,35 +476,35 @@ namespace Suconbu.Scripting.Memezo
     {
         public static readonly Value Zero = new Value(0);
 
-        public ValueType Type { get; private set; }
+        public DataType Type { get; private set; }
         public double Number { get; private set; }
         public string String { get; private set; }
 
         public Value(double n) : this()
         {
-            this.Type = ValueType.Number;
+            this.Type = DataType.Number;
             this.Number = n;
         }
 
         public Value(string s) : this()
         {
-            this.Type = ValueType.String;
+            this.Type = DataType.String;
             this.String = s;
         }
 
         public override string ToString()
         {
-            return (this.Type == ValueType.Number) ? this.Number.ToString() : this.String;
+            return (this.Type == DataType.Number) ? this.Number.ToString() : this.String;
         }
 
         public string ToQuotedString()
         {
-            return (this.Type == ValueType.Number) ? this.Number.ToString() : $"'{this.String}'";
+            return (this.Type == DataType.Number) ? this.Number.ToString() : $"'{this.String}'";
         }
 
         internal bool Boolean()
         {
-            return (this.Type == ValueType.Number) ? (this.Number != 0.0) : (this.String != string.Empty);
+            return (this.Type == DataType.Number) ? (this.Number != 0.0) : (this.String != string.Empty);
         }
 
         internal Value BinaryOperation(Value b, TokenType tokenType)
@@ -497,20 +514,20 @@ namespace Suconbu.Scripting.Memezo
             if (tokenType == TokenType.Multiply)
             {
                 return
-                    (a.Type == ValueType.Number && b.Type == ValueType.Number) ?
+                    (a.Type == DataType.Number && b.Type == DataType.Number) ?
                         new Value(a.Number * b.Number) :
-                    (a.Type == ValueType.String && b.Type == ValueType.Number) ?
+                    (a.Type == DataType.String && b.Type == DataType.Number) ?
                         new Value((new StringBuilder().Insert(0, a.String, (int)Math.Max(b.Number, 0.0))).ToString()) :
-                    (a.Type == ValueType.Number && b.Type == ValueType.String) ?
+                    (a.Type == DataType.Number && b.Type == DataType.String) ?
                         new Value((new StringBuilder().Insert(0, b.String, (int)Math.Max(a.Number, 0.0))).ToString()) :
                     throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
             }
 
             if (a.Type != b.Type)
             {
-                if (a.Type == ValueType.Number && b.Type == ValueType.String)
+                if (a.Type == DataType.Number && b.Type == DataType.String)
                     a = new Value(a.ToString());
-                else if (a.Type == ValueType.String && b.Type == ValueType.Number)
+                else if (a.Type == DataType.String && b.Type == DataType.Number)
                     b = new Value(b.ToString());
                 else
                     throw new InternalErrorException(ErrorType.InvalidDataType, $"{a.Type} x {b.Type}");
@@ -519,27 +536,27 @@ namespace Suconbu.Scripting.Memezo
             if (tokenType == TokenType.Plus)
             {
                 return
-                    (a.Type == ValueType.Number) ? new Value(a.Number + b.Number) :
-                    (a.Type == ValueType.String) ? new Value(a.String + b.String) :
+                    (a.Type == DataType.Number) ? new Value(a.Number + b.Number) :
+                    (a.Type == DataType.String) ? new Value(a.String + b.String) :
                     throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
             }
             else if (tokenType == TokenType.Equal)
             {
                 return
-                    (a.Type == ValueType.Number) ? new Value(a.Number == b.Number ? 1 : 0) :
-                    (a.Type == ValueType.String) ? new Value(a.String == b.String ? 1 : 0) :
+                    (a.Type == DataType.Number) ? new Value(a.Number == b.Number ? 1 : 0) :
+                    (a.Type == DataType.String) ? new Value(a.String == b.String ? 1 : 0) :
                     throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
             }
             else if (tokenType == TokenType.NotEqual)
             {
                 return
-                    (a.Type == ValueType.Number) ? new Value(a.Number != b.Number ? 1 : 0) :
-                    (a.Type == ValueType.String) ? new Value(a.String != b.String ? 1 : 0) :
+                    (a.Type == DataType.Number) ? new Value(a.Number != b.Number ? 1 : 0) :
+                    (a.Type == DataType.String) ? new Value(a.String != b.String ? 1 : 0) :
                     throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
             }
             else
             {
-                if (a.Type != ValueType.Number) throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
+                if (a.Type != DataType.Number) throw new InternalErrorException(ErrorType.NotSupportedOperation, $"{tokenType} for {a.Type}");
 
                 return
                     (tokenType == TokenType.Minus) ? new Value(a.Number - b.Number) :
@@ -555,76 +572,6 @@ namespace Suconbu.Scripting.Memezo
                     (tokenType == TokenType.Or) ? new Value(a.Number != 0.0 || b.Number != 0.0 ? 1 : 0) :
                     throw new InternalErrorException(ErrorType.UnknownOperator, $"{tokenType}");
             }
-        }
-    }
-
-    class BuiltinFunction
-    {
-        public static void InstallAll(Interpreter interpreter)
-        {
-            interpreter.Functions["str"] = Str;
-            interpreter.Functions["int"] = Int;
-            interpreter.Functions["float"] = Float;
-            interpreter.Functions["abs"] = Abs;
-            interpreter.Functions["min"] = Min;
-            interpreter.Functions["max"] = Max;
-        }
-
-        public static Value Str(List<Value> args)
-        {
-            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            return new Value(args[0].ToString());
-        }
-
-        public static Value Int(List<Value> args)
-        {
-            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            var value = args[0];
-            return
-                (value.Type == ValueType.String) ? new Value(long.Parse(value.String)) :
-                (value.Type == ValueType.Number) ? new Value((long)value.Number) :
-                throw new InternalErrorException(ErrorType.InvalidDataType);
-        }
-
-        public static Value Float(List<Value> args)
-        {
-            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            var value = args[0];
-            return
-                (value.Type == ValueType.String) ? new Value(double.Parse(value.String)) :
-                (value.Type == ValueType.Number) ? new Value(value.Number) :
-                throw new InternalErrorException(ErrorType.InvalidDataType);
-        }
-
-        public static Value Abs(List<Value> args)
-        {
-            if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            if(args[0].Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
-            return new Value(Math.Abs(args[0].Number));
-        }
-
-        public static Value Min(List<Value> args)
-        {
-            if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            var min = double.MaxValue;
-            foreach (var arg in args)
-            {
-                if (arg.Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
-                min = Math.Min(min, arg.Number);
-            }
-            return new Value(min);
-        }
-
-        public static Value Max(List<Value> args)
-        {
-            if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            var max = double.MinValue;
-            foreach (var arg in args)
-            {
-                if (arg.Type != ValueType.Number) throw new InternalErrorException(ErrorType.InvalidDataType);
-                max = Math.Max(max, arg.Number);
-            }
-            return new Value(max);
         }
     }
 

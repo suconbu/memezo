@@ -1,0 +1,3 @@
+# NOK:InvalidParameter
+
+randint(1, 0)
