@@ -139,6 +139,7 @@ namespace Suconbu.Scripting.Memezo
             var result = (firstTokenType == TokenType.If || firstTokenType == TokenType.Elif) ? this.Expr().Boolean() : true;
 
             if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
+            else if (firstTokenType != TokenType.Else && this.lexer.Token.Type == TokenType.Then) this.lexer.ReadToken();
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: {this.lexer.Token} {result}");
 
@@ -203,7 +204,7 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
             var toValue = this.Expr();
 
-            if (this.lexer.Token.Type == TokenType.Colon) this.lexer.ReadToken();
+            if (this.lexer.Token.Type == TokenType.Colon || this.lexer.Token.Type == TokenType.Do) this.lexer.ReadToken();
 
             this.DebugLog($"{this.lexer.Token.Location.Line + 1}: For {this.Vars[name]} to {toValue}");
 
@@ -665,9 +666,11 @@ namespace Suconbu.Scripting.Memezo
                 (identifier == "if") ? TokenType.If :
                 (identifier == "elif") ? TokenType.Elif :
                 (identifier == "else") ? TokenType.Else :
-                (identifier == "end") ? TokenType.End :
+                (identifier == "then") ? TokenType.Then :
                 (identifier == "for") ? TokenType.For :
                 (identifier == "to") ? TokenType.To :
+                (identifier == "do") ? TokenType.Do :
+                (identifier == "end") ? TokenType.End :
                 (identifier == "continue") ? TokenType.Continue :
                 (identifier == "break") ? TokenType.Break :
                 (identifier == "exit") ? TokenType.Exit :
@@ -801,7 +804,7 @@ namespace Suconbu.Scripting.Memezo
         Identifer, Value,
 
         // Statement keyword
-        If, Elif, Else, For, To, End, Continue, Break, Exit,
+        If, Elif, Else, Then, For, To, Do, End, Continue, Break, Exit,
 
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
