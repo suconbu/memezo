@@ -38,7 +38,8 @@ namespace Suconbu.Scripting
                     {
                         if (File.Exists(match.Groups[1].Value))
                         {
-                            interp.Run(File.ReadAllText(match.Groups[1].Value));
+                            interp.Source = File.ReadAllText(match.Groups[1].Value);
+                            interp.Run();
                         }
                     }
                 }
@@ -50,7 +51,7 @@ namespace Suconbu.Scripting
                     {
                         pattern = match.Groups[1].Value;
                     }
-                    RunTest(@"..\..\test", pattern);
+                    RunTest(@"..\..\test", pattern, line.EndsWith("step"));
                 }
                 else if (line == "@vars")
                 {
@@ -67,7 +68,7 @@ namespace Suconbu.Scripting
             }
         }
 
-        static void RunTest(string directoryPath, string pattern)
+        static void RunTest(string directoryPath, string pattern, bool stepByStep = false)
         {
             var swAll = Stopwatch.StartNew();
             int totalCount = 0;
@@ -92,9 +93,23 @@ namespace Suconbu.Scripting
                 interp.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
                 interp.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
 
-                var code = File.ReadAllText(file);
+                interp.Source = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
-                var result = interp.Run(code);
+                bool result = false;
+                if (stepByStep)
+                {
+                    int index = 0;
+                    while (true)
+                    {
+                        result = interp.Step(index, out var nextIndex);
+                        if (!result || nextIndex < 0) break;
+                        index = nextIndex;
+                    }
+                }
+                else
+                {
+                    result = interp.Run();
+                }
                 var elapsed = sw.ElapsedMilliseconds;
 
                 Console.Write($"{elapsed,5:#,0}ms - ");

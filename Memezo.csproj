@@ -52,5 +52,37 @@
   <ItemGroup>
     <None Include="App.config" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="test\assign1.txt" />
+    <Content Include="test\assign2.txt" />
+    <Content Include="test\for1.txt" />
+    <Content Include="test\for2.txt" />
+    <Content Include="test\for3.txt" />
+    <Content Include="test\for4.txt" />
+    <Content Include="test\for5.txt" />
+    <Content Include="test\for6.txt" />
+    <Content Include="test\if1.txt" />
+    <Content Include="test\if2.txt" />
+    <Content Include="test\if3.txt" />
+    <Content Include="test\if4.txt" />
+    <Content Include="test\if5.txt" />
+    <Content Include="test\if6.txt" />
+    <Content Include="test\if7.txt" />
+    <Content Include="test\ope1.txt" />
+    <Content Include="test\ope2.txt" />
+    <Content Include="test\random1.txt" />
+    <Content Include="test\random2.txt" />
+    <Content Include="test\random3.txt" />
+    <Content Include="test\random4.txt" />
+    <Content Include="test\repeat1.txt" />
+    <Content Include="test\standard1.txt" />
+    <Content Include="test\syntax1.txt" />
+    <Content Include="test\syntax2.txt" />
+    <Content Include="test\undef1.txt" />
+    <Content Include="test\undef2.txt" />
+    <Content Include="test\undef3.txt" />
+    <Content Include="test\unexpect3.txt" />
+    <Content Include="test\unexpect4.txt" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

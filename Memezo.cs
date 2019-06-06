@@ -26,8 +26,9 @@ namespace Suconbu.Scripting.Memezo
         public ErrorInfo LastError { get; private set; }
         public RunStat Stat { get; private set; } = new RunStat();
         public IEnumerable<IFunctionLibrary> InstalledLibraries { get { return this.installedLibraries; } }
+        public string Source { get => this.source; set { this.source = value; this.lexer = null; } }
 
-        bool exit;
+        string source;
         Lexer lexer;
         SourceLocation statementLocation;
         int nestingLevelOfDeferredSource;
@@ -59,9 +60,24 @@ namespace Suconbu.Scripting.Memezo
             }
         }
 
-        public bool Run(string source)
+        public bool Run()
         {
-            return this.RunInternal(source);
+            this.lexer = this.lexer ?? this.NewLexer(this.source);
+            return this.RunInternal(false, out var finished);
+        }
+
+        public bool Step(int sourceIndex, out int nextIndex)
+        {
+            var skippedSource = this.source.Take(sourceIndex);
+            this.lexer = this.lexer ?? this.NewLexer(this.source);
+            var location = new SourceLocation()
+            {
+                CharIndex = sourceIndex,
+                Line = skippedSource.Count(c => c == '\n'),
+                Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
+            };
+            this.lexer.Move(location);
+            return this.RunInternal(true, out nextIndex);
         }
 
         public bool InteractiveRun(string source, out bool deferred)
@@ -73,7 +89,8 @@ namespace Suconbu.Scripting.Memezo
             this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
             if (this.nestingLevelOfDeferredSource > 0) return true;
 
-            var result = this.RunInternal(this.deferredSource.ToString());
+            this.lexer = this.lexer ?? this.NewLexer(this.deferredSource.ToString());
+            var result = this.RunInternal(false, out var nextIndex);
 
             this.deferredSource.Clear();
             this.nestingLevelOfDeferredSource = this.clauses.Count;
@@ -82,17 +99,21 @@ namespace Suconbu.Scripting.Memezo
             return result;
         }
 
-        bool RunInternal(string source)
+        bool RunInternal(bool stepByStep, out int nextIndex)
         {
-            var result = false;
+            nextIndex = -1;
             try
             {
-                this.exit = false;
-                this.lexer = new Lexer(source);
-                this.lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
                 this.lexer.ReadToken();
-                while (!this.exit) this.Statement();
-                result = true;
+                if (stepByStep)
+                {
+                    nextIndex = this.Statement() ? this.lexer.Token.Location.CharIndex : nextIndex;
+                }
+                else
+                {
+                    while (this.Statement()) ;
+                }
+                return true;
             }
             catch (Exception ex)
             {
@@ -100,11 +121,11 @@ namespace Suconbu.Scripting.Memezo
                 this.LastError = new ErrorInfo(errorType, ex.Message, this.lexer.Token.Location);
                 this.ErrorOccurred(this, this.LastError);
                 this.clauses.Clear();
+                return false;
             }
-            return result;
         }
 
-        void Statement()
+        bool Statement()
         {
             while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
 
@@ -114,6 +135,7 @@ namespace Suconbu.Scripting.Memezo
 
             var type = this.lexer.Token.Type;
             var nextType = this.lexer.NextToken.Type;
+            var continueToRun = true;
 
             if (type == TokenType.Unkown) throw new InternalErrorException(ErrorType.UnknownToken, $"{this.lexer.Token}");
             else if (type == TokenType.If) this.OnIf();
@@ -124,10 +146,12 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.End) this.OnEnd();
             else if (type == TokenType.Continue) this.OnContinue();
             else if (type == TokenType.Break) this.OnBreak();
-            else if (type == TokenType.Exit) this.OnExit();
-            else if (type == TokenType.Eof) this.OnEof();
+            else if (type == TokenType.Exit) { this.OnExit(); continueToRun = false; }
+            else if (type == TokenType.Eof) { this.OnEof(); continueToRun = false; }
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
             else this.Output(this, this.Expr().ToQuotedString());
+
+            return continueToRun;
         }
 
         void OnIf()
@@ -311,15 +335,11 @@ namespace Suconbu.Scripting.Memezo
             this.lexer.ReadToken();
         }
 
-        void OnExit()
-        {
-            this.exit = true;
-        }
+        void OnExit() { }
 
         void OnEof()
         {
             if (this.clauses.Count > 0) throw new InternalErrorException(ErrorType.MissingToken, $"{TokenType.End}");
-            this.exit = true;
         }
 
         void OnAssign()
@@ -422,6 +442,13 @@ namespace Suconbu.Scripting.Memezo
                 break;
             }
             return args;
+        }
+
+        Lexer NewLexer(string input)
+        {
+            var lexer = new Lexer(input);
+            lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
+            return lexer;
         }
 
         void DebugLog(string s)
