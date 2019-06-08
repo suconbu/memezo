@@ -73,6 +73,31 @@ namespace Suconbu.Scripting
             var swAll = Stopwatch.StartNew();
             int totalCount = 0;
             int okCount = 0;
+
+            {
+                var interp = new Memezo.Interpreter();
+
+                ++totalCount;
+                if (!interp.Run()) ++okCount;
+                else Console.Write($"NOK: Expected 'NothingSource', but not occurred.");
+
+                int nextIndex = 0;
+
+                ++totalCount;
+                if (!interp.Step(0, out nextIndex)) ++okCount;
+                else Console.Write($"NOK: Expected 'NothingSource', but not occurred.");
+
+                interp.Source = "n = 1";
+
+                ++totalCount;
+                if (interp.Step(100, out nextIndex)) ++okCount;
+                else Console.Write($"NOK: ");
+
+                ++totalCount;
+                if (interp.Step(-1, out nextIndex)) ++okCount;
+                else Console.Write($"NOK: ");
+            }
+
             foreach (string file in Directory.GetFiles(directoryPath, pattern))
             {
                 var firstLine = File.ReadLines(file).FirstOrDefault();

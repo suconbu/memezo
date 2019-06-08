@@ -9,7 +9,7 @@ namespace Suconbu.Scripting.Memezo
     public enum DataType { Number, String }
     public enum ErrorType
     {
-        UnexpectedToken, UnknownToken, MissingToken, UndeclaredIdentifier,
+        NothingSource, UnexpectedToken, UnknownToken, MissingToken, UndeclaredIdentifier,
         NotSupportedOperation, UnknownOperator, InvalidNumberOfArguments, InvalidDataType, InvalidOperation, InvalidParameter,
         InvalidNumberFormat, InvalidStringLiteral, UnknownError
     }
@@ -62,21 +62,25 @@ namespace Suconbu.Scripting.Memezo
 
         public bool Run()
         {
-            this.lexer = this.lexer ?? this.NewLexer(this.source);
+            this.lexer = this.lexer ?? this.PrepareLexer(this.source);
             return this.RunInternal(false, out var finished);
         }
 
         public bool Step(int sourceIndex, out int nextIndex)
         {
-            var skippedSource = this.source.Take(sourceIndex);
-            this.lexer = this.lexer ?? this.NewLexer(this.source);
-            var location = new SourceLocation()
+            this.lexer = this.lexer ?? this.PrepareLexer(this.source);
+            if (this.lexer != null)
             {
-                CharIndex = sourceIndex,
-                Line = skippedSource.Count(c => c == '\n'),
-                Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
-            };
-            this.lexer.Move(location);
+                var skippedSource = this.source.Take(sourceIndex);
+                var location = new SourceLocation()
+                {
+                    CharIndex = Math.Max(0, Math.Min(sourceIndex, this.source.Length)),
+                    Line = skippedSource.Count(c => c == '\n'),
+                    Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
+                };
+                this.lexer.Move(location);
+                this.lexer.ReadToken();
+            }
             return this.RunInternal(true, out nextIndex);
         }
 
@@ -89,7 +93,7 @@ namespace Suconbu.Scripting.Memezo
             this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
             if (this.nestingLevelOfDeferredSource > 0) return true;
 
-            this.lexer = this.lexer ?? this.NewLexer(this.deferredSource.ToString());
+            this.lexer = this.lexer ?? this.PrepareLexer(this.deferredSource.ToString());
             var result = this.RunInternal(false, out var nextIndex);
 
             this.deferredSource.Clear();
@@ -104,7 +108,7 @@ namespace Suconbu.Scripting.Memezo
             nextIndex = -1;
             try
             {
-                this.lexer.ReadToken();
+                if(this.lexer == null) throw new InternalErrorException(ErrorType.NothingSource);
                 if (stepByStep)
                 {
                     nextIndex = this.Statement() ? this.lexer.Token.Location.CharIndex : nextIndex;
@@ -118,7 +122,7 @@ namespace Suconbu.Scripting.Memezo
             catch (Exception ex)
             {
                 var errorType = (ex as InternalErrorException)?.ErrorType ?? ErrorType.UnknownError;
-                this.LastError = new ErrorInfo(errorType, ex.Message, this.lexer.Token.Location);
+                this.LastError = new ErrorInfo(errorType, ex.Message, this.lexer?.Token.Location ?? new SourceLocation());
                 this.ErrorOccurred(this, this.LastError);
                 this.clauses.Clear();
                 return false;
@@ -444,10 +448,12 @@ namespace Suconbu.Scripting.Memezo
             return args;
         }
 
-        Lexer NewLexer(string input)
+        Lexer PrepareLexer(string input)
         {
+            if (input == null) return null;
             var lexer = new Lexer(input);
             lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
+            lexer.ReadToken();
             return lexer;
         }
 
