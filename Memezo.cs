@@ -18,7 +18,7 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public event EventHandler<string> Output = delegate { };
-        public event EventHandler<SourceLocation> StatementReached = delegate { };
+        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementReached = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
@@ -66,21 +66,9 @@ namespace Suconbu.Scripting.Memezo
             return this.RunInternal(false, out var finished);
         }
 
-        public bool Step(int sourceIndex, out int nextIndex)
+        public bool Step(int startIndex, out int nextIndex)
         {
-            this.lexer = this.lexer ?? this.PrepareLexer(this.source);
-            if (this.lexer != null)
-            {
-                var skippedSource = this.source.Take(sourceIndex);
-                var location = new SourceLocation()
-                {
-                    CharIndex = Math.Max(0, Math.Min(sourceIndex, this.source.Length)),
-                    Line = skippedSource.Count(c => c == '\n'),
-                    Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
-                };
-                this.lexer.Move(location);
-                this.lexer.ReadToken();
-            }
+            this.lexer = this.lexer ?? this.PrepareLexer(this.source, startIndex);
             return this.RunInternal(true, out nextIndex);
         }
 
@@ -448,11 +436,22 @@ namespace Suconbu.Scripting.Memezo
             return args;
         }
 
-        Lexer PrepareLexer(string input)
+        Lexer PrepareLexer(string input, int startIndex = 0)
         {
             if (input == null) return null;
             var lexer = new Lexer(input);
             lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
+            if(startIndex > 0)
+            {
+                var skippedSource = this.source.Take(startIndex);
+                var location = new SourceLocation()
+                {
+                    CharIndex = Math.Max(0, Math.Min(startIndex, this.source.Length)),
+                    Line = skippedSource.Count(c => c == '\n'),
+                    Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
+                };
+                lexer.Move(location);
+            }
             lexer.ReadToken();
             return lexer;
         }

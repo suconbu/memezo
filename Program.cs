@@ -17,7 +17,7 @@ namespace Suconbu.Scripting
             var interp = new Memezo.Interpreter();
             interp.Install(new Memezo.StandardLibrary(), new Memezo.RandomLibrary());
             interp.Output += (s, e) => Console.WriteLine(e);
-            //interpreter.StatementReached += (s, e) => Console.WriteLine($"Statement:{e}");
+            //interp.StatementReached += (s, e) => Console.WriteLine($"Statement:{e}");
             interp.ErrorOccurred += (s,e) => Console.WriteLine($"ERROR: {e}");
 
             var output = new StringBuilder();
