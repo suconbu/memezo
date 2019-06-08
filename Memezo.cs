@@ -26,13 +26,13 @@ namespace Suconbu.Scripting.Memezo
         public ErrorInfo LastError { get; private set; }
         public RunStat Stat { get; private set; } = new RunStat();
         public IEnumerable<IFunctionLibrary> InstalledLibraries { get { return this.installedLibraries; } }
-        public string Source { get => this.source; set { this.source = value; this.lexer = null; } }
+        public string Source { get => this.source; set => this.UpdateSource(value); }
 
         string source;
         Lexer lexer;
         SourceLocation statementLocation;
         int nestingLevelOfDeferredSource;
-        readonly StringBuilder deferredSource = new StringBuilder();
+        readonly StringBuilder interactiveSource = new StringBuilder();
         readonly Stack<Clause> clauses = new Stack<Clause>();
         readonly Dictionary<TokenType, int> operatorPrecs = new Dictionary<TokenType, int>()
         {
@@ -75,16 +75,16 @@ namespace Suconbu.Scripting.Memezo
         public bool RunInteractive(string source, out bool deferred)
         {
             deferred = true;
-            this.deferredSource.AppendLine(source);
+            this.interactiveSource.AppendLine(source);
             var tokens = Lexer.SplitTokens(source);
             this.nestingLevelOfDeferredSource += tokens.Count(t => t.IsCompoundStatement());
             this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
             if (this.nestingLevelOfDeferredSource > 0) return true;
 
-            this.lexer = this.PrepareLexer(this.deferredSource.ToString());
+            this.lexer = this.PrepareLexer(this.interactiveSource.ToString());
             var result = this.RunInternal(false, out var nextIndex);
 
-            this.deferredSource.Clear();
+            this.interactiveSource.Clear();
             this.nestingLevelOfDeferredSource = this.clauses.Count;
             deferred = (this.nestingLevelOfDeferredSource > 0);
 
@@ -454,6 +454,13 @@ namespace Suconbu.Scripting.Memezo
             }
             lexer.ReadToken();
             return lexer;
+        }
+
+        void UpdateSource(string source)
+        {
+            this.source = source;
+            this.lexer = null;
+            this.clauses.Clear();
         }
 
         void DebugLog(string s)
