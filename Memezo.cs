@@ -93,7 +93,7 @@ namespace Suconbu.Scripting.Memezo
             this.nestingLevelOfDeferredSource -= tokens.Count(t => t.Type == TokenType.End);
             if (this.nestingLevelOfDeferredSource > 0) return true;
 
-            this.lexer = this.lexer ?? this.PrepareLexer(this.deferredSource.ToString());
+            this.lexer = this.PrepareLexer(this.deferredSource.ToString());
             var result = this.RunInternal(false, out var nextIndex);
 
             this.deferredSource.Clear();
