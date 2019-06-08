@@ -84,7 +84,7 @@ namespace Suconbu.Scripting.Memezo
             return this.RunInternal(true, out nextIndex);
         }
 
-        public bool InteractiveRun(string source, out bool deferred)
+        public bool RunInteractive(string source, out bool deferred)
         {
             deferred = true;
             this.deferredSource.AppendLine(source);

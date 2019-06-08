@@ -63,7 +63,7 @@ namespace Suconbu.Scripting
                 }
                 else
                 {
-                    interp.InteractiveRun(line, out deferred);
+                    interp.RunInteractive(line, out deferred);
                 }
             }
         }
