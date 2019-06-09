@@ -84,17 +84,13 @@ namespace Suconbu.Scripting
                 int nextIndex = 0;
 
                 ++totalCount;
-                if (!interp.Step(0, out nextIndex)) ++okCount;
+                if (!interp.Step(out nextIndex)) ++okCount;
                 else Console.Write($"NOK: Expected 'NothingSource', but not occurred.");
 
-                interp.Source = "n = 1";
+                interp.Source = "# \r\n # \r\n n = 1";
 
                 ++totalCount;
-                if (interp.Step(100, out nextIndex)) ++okCount;
-                else Console.Write($"NOK: ");
-
-                ++totalCount;
-                if (interp.Step(-1, out nextIndex)) ++okCount;
+                if (interp.ForwardToNextStatement(out nextIndex) && nextIndex == 10) ++okCount;
                 else Console.Write($"NOK: ");
             }
 
@@ -123,12 +119,10 @@ namespace Suconbu.Scripting
                 bool result = false;
                 if (stepByStep)
                 {
-                    int index = 0;
                     while (true)
                     {
-                        result = interp.Step(index, out var nextIndex);
+                        result = interp.Step(out var nextIndex);
                         if (!result || nextIndex < 0) break;
-                        index = nextIndex;
                     }
                 }
                 else

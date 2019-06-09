@@ -18,8 +18,6 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public event EventHandler<string> Output = delegate { };
-        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementEnter = delegate { };
-        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementLeave = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
@@ -67,10 +65,20 @@ namespace Suconbu.Scripting.Memezo
             return this.RunInternal(false, out var finished);
         }
 
-        public bool Step(int startIndex, out int nextIndex)
+        public bool Step(out int nextIndex)
         {
-            this.lexer = this.lexer ?? this.PrepareLexer(this.source, startIndex);
+            this.lexer = this.lexer ?? this.PrepareLexer(this.source);
             return this.RunInternal(true, out nextIndex);
+        }
+
+        public bool ForwardToNextStatement(out int nextIndex)
+        {
+            nextIndex = -1;
+            this.lexer = this.lexer ?? this.PrepareLexer(this.source);
+            if (this.lexer == null) return false;
+            while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
+            nextIndex = this.lexer.Token.Location.CharIndex;
+            return true;
         }
 
         public bool RunInteractive(string source, out bool deferred)
@@ -123,7 +131,6 @@ namespace Suconbu.Scripting.Memezo
             while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
 
             this.statementLocation = this.lexer.Token.Location;
-            this.StatementEnter(this, this.statementLocation);
             this.Stat.StatementCount++;
 
             var type = this.lexer.Token.Type;
@@ -143,9 +150,6 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Eof) { this.OnEof(); continueToRun = false; }
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
             else this.Output(this, this.Expr().ToString());
-
-            while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
-            this.StatementLeave(this, this.lexer.Token.Location);
 
             return continueToRun;
         }
@@ -440,22 +444,11 @@ namespace Suconbu.Scripting.Memezo
             return args;
         }
 
-        Lexer PrepareLexer(string input, int startIndex = 0)
+        Lexer PrepareLexer(string input)
         {
             if (input == null) return null;
             var lexer = new Lexer(input);
             lexer.TokenRead += (s, e) => RunStat.Increment(this.Stat.TokenCounts, e.Type.ToString());
-            if(startIndex > 0)
-            {
-                var skippedSource = this.source.Take(startIndex);
-                var location = new SourceLocation()
-                {
-                    CharIndex = Math.Max(0, Math.Min(startIndex, this.source.Length)),
-                    Line = skippedSource.Count(c => c == '\n'),
-                    Column = skippedSource.Reverse().TakeWhile(c => c != '\n' && c != '\r').Count()
-                };
-                lexer.Move(location);
-            }
             lexer.ReadToken();
             return lexer;
         }
