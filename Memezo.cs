@@ -463,10 +463,7 @@ namespace Suconbu.Scripting.Memezo
             this.clauses.Clear();
         }
 
-        void DebugLog(string s)
-        {
-            //Debug.WriteLine(s);
-        }
+        void DebugLog(string s) { /*Debug.WriteLine(s);*/ }
 
         struct Clause
         {
@@ -509,10 +506,7 @@ namespace Suconbu.Scripting.Memezo
         public int Line { get; set; }
         public int Column { get; set; }
 
-        public override string ToString()
-        {
-            return $"Line:{this.Line + 1} Column:{this.Column + 1}";
-        }
+        public override string ToString() => $"Line:{this.Line + 1} Column:{this.Column + 1}";
     }
 
     public struct ErrorInfo
@@ -528,10 +522,8 @@ namespace Suconbu.Scripting.Memezo
             this.Location = location;
         }
 
-        public override string ToString()
-        {
-            return !string.IsNullOrEmpty(this.Message) ? $"{this.Message} at {this.Location}" : string.Empty;
-        }
+        public override string ToString() =>
+            !string.IsNullOrEmpty(this.Message) ? $"{this.Message} at {this.Location}" : string.Empty;
     }
 
     public class Value
@@ -836,25 +828,14 @@ namespace Suconbu.Scripting.Memezo
             this.currentLocation.CharIndex++;
         }
 
-        char GetCharAt(int index)
-        {
-            return (0 <= index && index < this.source.Length) ? this.source[index] : (char)0;
-        }
+        char GetCharAt(int index) =>
+            (0 <= index && index < this.source.Length) ? this.source[index] : (char)0;
 
-        bool IsLetterOrUnderscore(char c)
-        {
-            return char.IsLetter(c) || c == '_';
-        }
+        bool IsLetterOrUnderscore(char c) => (char.IsLetter(c) || c == '_');
 
-        bool IsLetterOrDigitOrUnderscore(char c)
-        {
-            return char.IsLetterOrDigit(c) || c == '_';
-        }
+        bool IsLetterOrDigitOrUnderscore(char c) => (char.IsLetterOrDigit(c) || c == '_');
 
-        bool IsStringEnclosure(char c)
-        {
-            return c == '"' || c == '\'';
-        }
+        bool IsStringEnclosure(char c) => (c == '"' || c == '\'');
     }
 
     enum TokenType
@@ -908,10 +889,7 @@ namespace Suconbu.Scripting.Memezo
         public bool IsLoop() { return this.Type == TokenType.For || this.Type == TokenType.Repeat; }
         public bool IsOperator() { return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd; }
 
-        public override string ToString()
-        {
-            return $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
-        }
+        public override string ToString() => $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
     }
 
     class InternalErrorException : Exception
