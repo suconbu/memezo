@@ -529,7 +529,7 @@ namespace Suconbu.Scripting.Memezo
             !string.IsNullOrEmpty(this.Message) ? $"{this.Message} at {this.Location}" : string.Empty;
     }
 
-    public class Value
+    public struct Value
     {
         public static readonly Value Zero = new Value(0.0);
 
@@ -537,21 +537,19 @@ namespace Suconbu.Scripting.Memezo
         public double Number { get; private set; }
         public string String { get; private set; }
 
-        public Value(double n)
+        public Value(double n) : this()
         {
             this.Type = DataType.Number;
             this.Number = n;
             this.String = n.ToString();
         }
 
-        public Value(string s)
+        public Value(string s) : this()
         {
             this.Type = DataType.String;
             this.Number = 0.0;
             this.String = s;
         }
-
-        Value() { }
 
         public override string ToString() => this.String;
 
