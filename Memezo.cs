@@ -144,6 +144,7 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
             else this.Output(this, this.Expr().ToString());
 
+            while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
             this.StatementLeave(this, this.lexer.Token.Location);
 
             return continueToRun;
