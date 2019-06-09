@@ -18,7 +18,8 @@ namespace Suconbu.Scripting.Memezo
     public class Interpreter
     {
         public event EventHandler<string> Output = delegate { };
-        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementReached = delegate { };
+        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementEnter = delegate { };
+        public event EventHandler<SourceLocation/* nextTokenLocation */> StatementLeave = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
@@ -122,7 +123,7 @@ namespace Suconbu.Scripting.Memezo
             while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
 
             this.statementLocation = this.lexer.Token.Location;
-            this.StatementReached(this, this.statementLocation);
+            this.StatementEnter(this, this.statementLocation);
             this.Stat.StatementCount++;
 
             var type = this.lexer.Token.Type;
@@ -142,6 +143,8 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Eof) { this.OnEof(); continueToRun = false; }
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
             else this.Output(this, this.Expr().ToQuotedString());
+
+            this.StatementLeave(this, this.lexer.Token.Location);
 
             return continueToRun;
         }
