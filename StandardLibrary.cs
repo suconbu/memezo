@@ -32,7 +32,7 @@ namespace Suconbu.Scripting.Memezo
         public static Value Str(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
-            return new Value(args[0].ToString());
+            return new Value(args[0].String);
         }
 
         // num(v) : Convert a value to number.

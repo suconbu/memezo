@@ -142,7 +142,7 @@ namespace Suconbu.Scripting.Memezo
             else if (type == TokenType.Exit) { this.OnExit(); continueToRun = false; }
             else if (type == TokenType.Eof) { this.OnEof(); continueToRun = false; }
             else if (type == TokenType.Identifer && nextType == TokenType.Assign) this.OnAssign();
-            else this.Output(this, this.Expr().ToQuotedString());
+            else this.Output(this, this.Expr().ToString());
 
             this.StatementLeave(this, this.lexer.Token.Location);
 
@@ -551,9 +551,7 @@ namespace Suconbu.Scripting.Memezo
             this.String = s;
         }
 
-        public override string ToString() => this.String;
-
-        public string ToQuotedString() =>
+        public override string ToString() =>
             (this.Type == DataType.Number) ? this.String : $"'{this.String}'";
 
         internal bool Boolean() =>

@@ -115,8 +115,8 @@ namespace Suconbu.Scripting
                 var interp = new Memezo.Interpreter();
                 interp.Install(new Memezo.StandardLibrary(), new Memezo.RandomLibrary());
                 var output = new StringBuilder();
-                interp.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
-                interp.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().ToString() : null); return Memezo.Value.Zero; };
+                interp.Functions["print"] = (a) => { output.Append(a.Count > 0 ? a.First().String : null); return Memezo.Value.Zero; };
+                interp.Functions["printline"] = (a) => { output.AppendLine(a.Count > 0 ? a.First().String : null); return Memezo.Value.Zero; };
 
                 interp.Source = File.ReadAllText(file);
                 var sw = Stopwatch.StartNew();
