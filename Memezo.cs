@@ -534,40 +534,37 @@ namespace Suconbu.Scripting.Memezo
         }
     }
 
-    public struct Value
+    public class Value
     {
-        public static readonly Value Zero = new Value(0);
+        public static readonly Value Zero = new Value(0.0);
 
         public DataType Type { get; private set; }
         public double Number { get; private set; }
         public string String { get; private set; }
 
-        public Value(double n) : this()
+        public Value(double n)
         {
             this.Type = DataType.Number;
             this.Number = n;
+            this.String = n.ToString();
         }
 
-        public Value(string s) : this()
+        public Value(string s)
         {
             this.Type = DataType.String;
+            this.Number = 0.0;
             this.String = s;
         }
 
-        public override string ToString()
-        {
-            return (this.Type == DataType.Number) ? this.Number.ToString() : this.String;
-        }
+        Value() { }
 
-        public string ToQuotedString()
-        {
-            return (this.Type == DataType.Number) ? this.Number.ToString() : $"'{this.String}'";
-        }
+        public override string ToString() => this.String;
 
-        internal bool Boolean()
-        {
-            return (this.Type == DataType.Number) ? (this.Number != 0.0) : (this.String != string.Empty);
-        }
+        public string ToQuotedString() =>
+            (this.Type == DataType.Number) ? this.String : $"'{this.String}'";
+
+        internal bool Boolean() =>
+            (this.Type == DataType.Number) ? (this.Number != 0.0) : !string.IsNullOrEmpty(this.String);
 
         internal Value BinaryOperation(Value b, TokenType tokenType)
         {
