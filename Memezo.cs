@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 
@@ -20,6 +21,8 @@ namespace Suconbu.Scripting.Memezo
         public event EventHandler<string> Output = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
+        public static readonly string[] Keywords = Lexer.Keywords;
+        public static readonly string LineCommentIndicator = Lexer.LineCommentIndicator;
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo LastError { get; private set; }
@@ -627,6 +630,8 @@ namespace Suconbu.Scripting.Memezo
 
         public Token Token { get; private set; }
         public Token NextToken { get; private set; }
+        public static readonly string[] Keywords = new[] { "if", "elif", "else", "then", "for", "in", "to", "repeat", "do", "end", "continue", "break", "exit", "or", "and", "not" };
+        public static readonly string LineCommentIndicator = "#";
 
         string source;
         SourceLocation currentLocation;
@@ -707,24 +712,16 @@ namespace Suconbu.Scripting.Memezo
             var location = this.currentLocation;
             var identifier = this.currentChar.ToString();
             while (this.IsLetterOrDigitOrUnderscore(this.ReadChar())) identifier += this.currentChar;
-            var type =
-                (identifier == "if") ? TokenType.If :
-                (identifier == "elif") ? TokenType.Elif :
-                (identifier == "else") ? TokenType.Else :
-                (identifier == "then") ? TokenType.Then :
-                (identifier == "for") ? TokenType.For :
-                (identifier == "in") ? TokenType.In :
-                (identifier == "to") ? TokenType.To :
-                (identifier == "repeat") ? TokenType.Repeat :
-                (identifier == "do") ? TokenType.Do :
-                (identifier == "end") ? TokenType.End :
-                (identifier == "continue") ? TokenType.Continue :
-                (identifier == "break") ? TokenType.Break :
-                (identifier == "exit") ? TokenType.Exit :
-                (identifier == "and") ? TokenType.And :
-                (identifier == "or") ? TokenType.Or :
-                (identifier == "not") ? TokenType.Not :
-                TokenType.Identifer;
+            var type = TokenType.Identifer;
+            foreach (var keyword in Lexer.Keywords)
+            {
+                if(identifier == keyword)
+                {
+                    var capitalized = CultureInfo.CurrentCulture.TextInfo.ToTitleCase(identifier);
+                    type = (TokenType)Enum.Parse(typeof(TokenType), capitalized);
+                    break;
+                }
+            }
             return new Token(type, location, identifier);
         }
 
