@@ -436,7 +436,9 @@ namespace Suconbu.Scripting.Memezo
             {
                 if (this.lexer.ReadToken().Type != TokenType.RightParen)
                 {
+                    while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
                     args.Add(this.Expr());
+                    while (this.lexer.Token.Type == TokenType.NewLine) this.lexer.ReadToken();
                     if (this.lexer.Token.Type == TokenType.Comma) continue;
                 }
                 break;
