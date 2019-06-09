@@ -850,7 +850,7 @@ namespace Suconbu.Scripting.Memezo
         // Symbol
         NewLine, Colon, Comma, Assign, LeftParen, RightParen,
 
-        OperatorBegin,
+        OperatorsBegin,
 
         // Arithmetic operator
         Plus, Minus, Multiply, Division, FloorDivision, Remainder, Exponent,
@@ -861,7 +861,7 @@ namespace Suconbu.Scripting.Memezo
         // Logical operator
         Or, And, Not,
 
-        OperatorEnd,
+        OperatorsEnd,
 
         Eof = -1
     }
@@ -887,7 +887,7 @@ namespace Suconbu.Scripting.Memezo
 
         public bool IsCompoundStatement() { return this.Type == TokenType.If || this.IsLoop(); }
         public bool IsLoop() { return this.Type == TokenType.For || this.Type == TokenType.Repeat; }
-        public bool IsOperator() { return TokenType.OperatorBegin <= this.Type && this.Type <= TokenType.OperatorEnd; }
+        public bool IsOperator() { return TokenType.OperatorsBegin < this.Type && this.Type < TokenType.OperatorsEnd; }
 
         public override string ToString() => $"'{this.Text.Replace("\n", "\\n")}'({this.Type})";
     }
