@@ -22,7 +22,8 @@ namespace Suconbu.Scripting.Memezo
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
 
         public static readonly string[] Keywords = Lexer.Keywords;
-        public static readonly string LineCommentIndicator = Lexer.LineCommentIndicator;
+        public static readonly string LineCommentMarker = Lexer.LineCommentMarker;
+        public static readonly char[] StringQuoteMarkers = Lexer.StringQuoteMarkers;
         public Dictionary<string, Function> Functions { get; private set; } = new Dictionary<string, Function>();
         public Dictionary<string, Value> Vars { get; private set; } = new Dictionary<string, Value>();
         public ErrorInfo LastError { get; private set; }
@@ -631,7 +632,8 @@ namespace Suconbu.Scripting.Memezo
         public Token Token { get; private set; }
         public Token NextToken { get; private set; }
         public static readonly string[] Keywords = new[] { "if", "elif", "else", "then", "for", "in", "to", "repeat", "do", "end", "continue", "break", "exit", "or", "and", "not" };
-        public static readonly string LineCommentIndicator = "#";
+        public static readonly string LineCommentMarker = "#";
+        public static readonly char[] StringQuoteMarkers = { '"', '\'' };
 
         string source;
         SourceLocation currentLocation;
