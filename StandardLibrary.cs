@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Suconbu.Scripting.Memezo
 {
@@ -28,14 +29,14 @@ namespace Suconbu.Scripting.Memezo
                 throw new InternalErrorException(ErrorType.InvalidDataType));
         }
 
-        // str(v) : Convert a value to string.
+        [Description("str(v) : Convert a value to string.")]
         public static Value Str(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             return new Value(args[0].String);
         }
 
-        // num(v) : Convert a value to number.
+        [Description("num(v) : Convert a value to number.")]
         public static Value Num(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -46,7 +47,7 @@ namespace Suconbu.Scripting.Memezo
                 throw new InternalErrorException(ErrorType.InvalidDataType));
         }
 
-        // abs(n) -> : n < 0 ? -n : n
+        [Description("abs(n) -> : n < 0 ? -n : n")]
         public static Value Abs(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -54,7 +55,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Math.Abs(args[0].Number));
         }
 
-        // min(n1, n2[, ...]) : Get a minimum value in arguments.
+        [Description("min(n1, n2[, ...]) : Get a minimum value in arguments.")]
         public static Value Min(List<Value> args)
         {
             if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -67,7 +68,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(min);
         }
 
-        // max(n1, n2[, ...]) : Get a maximum value in arguments.
+        [Description("max(n1, n2[, ...]) : Get a maximum value in arguments.")]
         public static Value Max(List<Value> args)
         {
             if (args.Count < 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -80,7 +81,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(max);
         }
 
-        // floor(n) : Largest integer less than or equal to the specified number.
+        [Description("floor(n) : Largest integer less than or equal to the specified number.")]
         public static Value Floor(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -88,7 +89,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Math.Floor(args[0].Number));
         }
 
-        // ceil(n) : Smallest integer greater than or equal to the specified number.
+        [Description("ceil(n) : Smallest integer greater than or equal to the specified number.")]
         public static Value Ceil(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -96,7 +97,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Math.Ceiling(args[0].Number));
         }
 
-        // truncate(n) : Get a integral part of a specified number.
+        [Description("truncate(n) : Get a integral part of a specified number.")]
         public static Value Truncate(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -104,7 +105,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Math.Truncate(args[0].Number));
         }
 
-        // round(n) Rounds a specified number to the nearest even integer.
+        [Description("round(n) Rounds a specified number to the nearest even integer.")]
         public static Value Round(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -112,7 +113,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Math.Round(args[0].Number));
         }
 
-        // len(s), strlen(s) : Return a length of string.
+        [Description("len(s), strlen(s) : Return a length of string.")]
         public static Value Len(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -120,7 +121,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(args[0].String.Length);
         }
 
-        // chr(code) : Code to character. (97 -> "a")
+        [Description("chr(code) : Code to character. (97 -> 'a')")]
         public static Value Chr(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -128,7 +129,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Convert.ToChar((int)args[0].Number).ToString());
         }
 
-        // ord(char) : Character to code. ("a" -> 97)
+        [Description("ord(char) : Character to code. ('a' -> 97)")]
         public static Value Ord(List<Value> args)
         {
             if (args.Count != 1) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -137,7 +138,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(Convert.ToInt32(args[0].String[0]));
         }
 
-        // slice(s, [start[, stop]]) : Take a part of string.
+        [Description("slice(s, [start[, stop]]) : Take a part of string.")]
         public static Value Slice(List<Value> args)
         {
             if (args.Count > 3) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);

@@ -1,6 +1,7 @@
 ﻿using Suconbu.Scripting.Memezo;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 
 namespace Suconbu.Scripting.Memezo
 {
@@ -18,14 +19,14 @@ namespace Suconbu.Scripting.Memezo
             };
         }
 
-        // Random() : 0.0 <= {return} < 1.0
+        [Description("Random() : 0.0 <= {return} < 1.0")]
         public static Value Random(List<Value> args)
         {
             if (args.Count != 0) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
             return new Value(RandomLibrary.random.NextDouble());
         }
 
-        // Uniform(min, max) : min <= {return} <= max
+        [Description("Uniform(min, max) : min <= {return} <= max")]
         public static Value Uniform(List<Value> args)
         {
             if (args.Count != 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -35,7 +36,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(RandomLibrary.random.NextDouble() * (max - min) + min);
         }
 
-        // RandRange(min, max[, step]) : min <= {return} < max
+        [Description("RandRange(min, max[, step]) : min <= {return} < max")]
         public static Value RandRange(List<Value> args)
         {
             if (args.Count != 2 && args.Count != 3) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
@@ -54,7 +55,7 @@ namespace Suconbu.Scripting.Memezo
             return new Value(min + RandomLibrary.random.Next(range) * step);
         }
 
-        // RandInt(min, max) : min <= {return} <= max
+        [Description("RandInt(min, max) : min <= {return} <= max")]
         public static Value RandInt(List<Value> args)
         {
             if (args.Count != 2) throw new InternalErrorException(ErrorType.InvalidNumberOfArguments);
