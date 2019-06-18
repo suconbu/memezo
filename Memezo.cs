@@ -20,6 +20,7 @@ namespace Suconbu.Scripting.Memezo
     {
         public event EventHandler<string> Output = delegate { };
         public event EventHandler<ErrorInfo> ErrorOccurred = delegate { };
+        public event EventHandler<string> FunctionInvoking = delegate { };
 
         public static readonly string[] Keywords = Lexer.Keywords;
         public static readonly string LineCommentMarker = Lexer.LineCommentMarker;
@@ -412,6 +413,7 @@ namespace Suconbu.Scripting.Memezo
                 {
                     this.VerifyToken(this.lexer.ReadToken(), TokenType.LeftParen);
                     var args = this.ReadArguments();
+                    this.FunctionInvoking(this, identifier);
                     primary = this.Functions[identifier](args);
                     RunStat.Increment(this.Stat.FunctionInvokedCounts, identifier);
                 }

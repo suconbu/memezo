@@ -77,6 +77,13 @@ namespace Suconbu.Scripting
             {
                 var interp = new Memezo.Interpreter();
 
+                interp.Install(new Memezo.StandardLibrary());
+                interp.FunctionInvoking += (s, e) =>
+                {
+                    ++totalCount;
+                    if (e == "abs") ++okCount;
+                };
+
                 ++totalCount;
                 if (!interp.Run()) ++okCount;
                 else Console.Write($"NOK: Expected 'NothingSource', but not occurred.");
@@ -87,11 +94,13 @@ namespace Suconbu.Scripting
                 if (!interp.Step(out nextIndex)) ++okCount;
                 else Console.Write($"NOK: Expected 'NothingSource', but not occurred.");
 
-                interp.Source = "# \r\n # \r\n n = 1";
+                interp.Source = "# \r\n # \r\n n = abs(-1)";
 
                 ++totalCount;
                 if (interp.ForwardToNextStatement(out nextIndex) && nextIndex == 10) ++okCount;
                 else Console.Write($"NOK: ");
+
+                interp.Run();
             }
 
             foreach (string file in Directory.GetFiles(directoryPath, pattern))
